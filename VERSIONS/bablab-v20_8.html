@@ -381,6 +381,17 @@ background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:3
         <input id="stripTeam" placeholder="e.g. Germany — legs from this team auto-stripped" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;padding:7px 12px;outline:none;margin-bottom:0">
       </div>
 
+      <!-- BAB MODE TOGGLE -->
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:6px">🎯 BAB Mode</div>
+        <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <button id="modeBtn-treble" onclick="setBabMode('treble')" style="flex:1;padding:7px 4px;font-size:11px;font-weight:700;background:var(--green);color:#000;border:none;cursor:pointer">3-Leg Treble</button>
+          <button id="modeBtn-double" onclick="setBabMode('double')" style="flex:1;padding:7px 4px;font-size:11px;font-weight:700;background:var(--s2);color:var(--dim);border:none;border-left:1px solid var(--border);cursor:pointer">2-Leg Double</button>
+          <button id="modeBtn-single" onclick="setBabMode('single')" style="flex:1;padding:7px 4px;font-size:11px;font-weight:700;background:var(--s2);color:var(--dim);border:none;border-left:1px solid var(--border);cursor:pointer">Single Pick</button>
+        </div>
+        <div id="modeDesc" style="font-size:10px;color:var(--dim);margin-top:4px">Best + Longshot trebles · Target 3–5x / 6x+</div>
+      </div>
+
       <button class="btn" style="width:100%" onclick="buildPreMatchBABs()">⚡ Generate BABs</button>
     </div>
 
@@ -388,10 +399,12 @@ background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:3
     <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px;margin:0 0 10px">
       <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">🔒 Lineup Gate (R-WC100)</div>
       <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Paste confirmed starters (comma or newline separated). Any BAB leg with a player NOT in this list will be flagged 🚫 or stripped.</div>
+      <div id="lineupAutoStatus" style="display:none;font-size:11px;padding:6px 10px;border-radius:6px;margin-bottom:6px"></div>
       <textarea id="lineupGate" placeholder="e.g. Robertson, Shankland, Ferguson, McKenna..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;padding:9px 12px;outline:none;resize:vertical;min-height:60px;font-family:monospace" oninput="checkLineupGate()"></textarea>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <button class="btn btn-sm btn-ghost" onclick="document.getElementById('lineupGate').value='';lineupConfirmed=[];updateLineupBadge()">Clear</button>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-ghost" onclick="document.getElementById('lineupGate').value='';lineupConfirmed=[];updateLineupBadge();setLineupAutoStatus('')">Clear</button>
         <button class="btn btn-sm" onclick="confirmLineup()">✅ Confirm Lineup</button>
+        <button class="btn btn-sm btn-ghost" id="lineupRetryBtn" style="display:none" onclick="retryLineupFetch()">🔄 Retry fetch</button>
         <div id="lineupBadge" style="font-size:11px;color:var(--dim);padding:4px 8px;background:var(--s2);border-radius:6px;align-self:center">No lineup set</div>
       </div>
     </div>
@@ -700,6 +713,9 @@ background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:3
       </div>
     </div>
 
+    <!-- Per-format win rate -->
+    <div id="sess-format-wr" style="display:none;gap:6px;flex-wrap:wrap;margin:0 0 10px"></div>
+
     <!-- Market breakdown -->
     <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:12px;margin:0 0 12px">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:8px">Leg Win Rate by Market Type</div>
@@ -716,6 +732,86 @@ background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:3
 </div>
 
 
+<!-- PAGE: REFEREE DATABASE -->
+<div id="page-refs" class="page">
+  <div class="sec" style="margin-top:12px">
+    <div class="sec-title">🟨 Referee Database</div>
+    <div style="font-size:11px;color:var(--dim);margin:0 0 12px">Stored in localStorage — survives sessions. Lookup order: this DB first, then hardcoded KNOWN_REFS fallback.</div>
+
+    <!-- ADD / EDIT FORM -->
+    <div class="api-card" style="margin:0 0 12px">
+      <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">➕ Add / Edit Referee</div>
+      <input id="refForm-name" placeholder="Full name (e.g. Jalal Jayed)" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;outline:none;margin-bottom:7px">
+      <input id="refForm-country" placeholder="Country (e.g. Morocco)" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;padding:7px 12px;outline:none;margin-bottom:7px">
+      <div style="display:flex;gap:7px;margin-bottom:7px">
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--dim);margin-bottom:3px">Career YC/game</div>
+          <input id="refForm-careerYC" type="number" step="0.01" placeholder="e.g. 3.9" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:7px 10px;outline:none">
+        </div>
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--dim);margin-bottom:3px">Career fouls/game</div>
+          <input id="refForm-careerFouls" type="number" step="0.1" placeholder="e.g. 27.5" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:7px 10px;outline:none">
+        </div>
+      </div>
+      <div style="display:flex;gap:7px;margin-bottom:7px">
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--dim);margin-bottom:3px">WC 2026 YC/game</div>
+          <input id="refForm-wcYC" type="number" step="0.01" placeholder="e.g. 2.5" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:7px 10px;outline:none">
+        </div>
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--dim);margin-bottom:3px">WC 2026 fouls/game</div>
+          <input id="refForm-wcFouls" type="number" step="0.1" placeholder="e.g. 22.0" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:7px 10px;outline:none">
+        </div>
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--dim);margin-bottom:3px">WC games</div>
+          <input id="refForm-wcGames" type="number" step="1" placeholder="0" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:7px 10px;outline:none">
+        </div>
+      </div>
+      <div style="margin-bottom:7px">
+        <div style="font-size:10px;color:var(--dim);margin-bottom:3px">Classification</div>
+        <select id="refForm-level" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;outline:none">
+          <option value="HIGH">HIGH — Elite card rate (3.9+ YC/game)</option>
+          <option value="MOD_HIGH">MOD_HIGH — Above average (3.0–3.9)</option>
+          <option value="STANDARD" selected>STANDARD — Average</option>
+          <option value="WC_PASSIVE">WC_PASSIVE — Career avg suppressed in WC context (R-WC53)</option>
+          <option value="WC_PASSIVE_EXTREME">WC_PASSIVE EXTREME — Near zero cards in WC (R-WC53)</option>
+          <option value="LOW">LOW — Low card rate</option>
+          <option value="UNKNOWN">UNKNOWN — Not yet classified</option>
+        </select>
+      </div>
+      <textarea id="refForm-note" placeholder="Notes — e.g. WC confirmed passive after 2 games, home/away split, R-WC references..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;padding:8px 12px;outline:none;resize:vertical;min-height:60px;margin-bottom:9px;font-family:inherit"></textarea>
+      <div style="display:flex;gap:7px">
+        <button class="btn" style="flex:1" onclick="submitRefForm()">💾 Save Referee</button>
+        <button class="btn btn-ghost" onclick="clearRefForm()">✕ Clear</button>
+      </div>
+      <div id="refFormStatus" style="font-size:11px;margin-top:6px;color:var(--dim)"></div>
+    </div>
+
+    <!-- SEARCH + TABLE -->
+    <div style="display:flex;gap:7px;margin-bottom:10px">
+      <input id="refSearch" placeholder="Search by name..." oninput="renderRefDB()" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;padding:7px 12px;outline:none">
+      <select id="refFilterLevel" onchange="renderRefDB()" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;padding:7px 10px;outline:none">
+        <option value="">All</option>
+        <option value="HIGH">HIGH</option>
+        <option value="MOD_HIGH">MOD_HIGH</option>
+        <option value="STANDARD">STANDARD</option>
+        <option value="WC_PASSIVE">WC_PASSIVE</option>
+        <option value="WC_PASSIVE_EXTREME">WC_PASSIVE EXTREME</option>
+        <option value="LOW">LOW</option>
+        <option value="UNKNOWN">UNKNOWN</option>
+      </select>
+    </div>
+    <div id="refDBTable"></div>
+
+    <!-- DANGER ZONE -->
+    <div style="margin-top:14px;padding:10px 12px;background:var(--s1);border:1px solid #3a1010;border-radius:8px">
+      <div style="font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">⚠️ Danger Zone</div>
+      <button onclick="if(confirm('Re-seed from KNOWN_REFS? This will overwrite entries with matching names.'))seedRefDBFromKnown();renderRefDB();" style="font-size:11px;padding:5px 12px;background:#2a0000;color:var(--red);border:1px solid #5a0000;border-radius:6px;cursor:pointer;margin-right:6px">↺ Re-seed from hardcoded KNOWN_REFS</button>
+      <button onclick="if(confirm('Delete ALL localStorage ref entries? Hardcoded KNOWN_REFS fallback still applies.')){{refDB={};saveRefDB();renderRefDB();}}" style="font-size:11px;padding:5px 12px;background:#2a0000;color:var(--red);border:1px solid #5a0000;border-radius:6px;cursor:pointer">🗑 Clear all localStorage refs</button>
+    </div>
+  </div>
+</div>
+
 <div class="nav">
   <button class="nav-btn active" onclick="showPage('fixtures',0)"><span class="nav-icon">📅</span>Fixtures</button>
   <button class="nav-btn" onclick="showPage('stats',1)"><span class="nav-icon">📊</span>Stats</button>
@@ -724,6 +820,7 @@ background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:3
   <button class="nav-btn" onclick="showPage('patterns',4)"><span class="nav-icon">🔍</span>Patterns</button>
   <button class="nav-btn" onclick="showPage('analytics',5)"><span class="nav-icon">📈</span>Edge</button>
   <button class="nav-btn" onclick="showPage('sessions',6);renderSessionPage()"><span class="nav-icon">📋</span>Sessions</button>
+  <button class="nav-btn" onclick="showPage('refs',7);renderRefDB()"><span class="nav-icon">🟨</span>Refs</button>
 </div>
 
 <script>
@@ -731,6 +828,13 @@ background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:3
 let fixtures=[], playerDB={}, refDB={}, callsUsed=0, currentTeams=[], currentFix=null, currentTeamIdx=0, currentSort='fouls', dbSort='fouls', activeGroup='All', plSessions=[];
 let lineupConfirmed=[];  // v20: confirmed starters from lineup gate
 let sessionLog=[];       // v20: detailed session + leg tracking
+
+// ─── UNICODE NORMALISATION ────────────────────────────────
+// Accented characters can be encoded as precomposed NFC (é = U+00E9) or
+// decomposed NFD (e + U+0301 combining accent). They look identical but fail ===.
+// norm() collapses both to NFC so all name comparisons are encoding-agnostic.
+const norm = s => (s || '').normalize('NFC').trim();
+function lookupAsset(name){ return KNOWN_ASSETS[norm(name)] || KNOWN_ASSETS[name]; }
 
 // ─── HARD RULES ENGINE ──────────────────────────────────
 const RULES = {
@@ -833,6 +937,15 @@ const RULES = {
 
 // Known assets
 const KNOWN_ASSETS = {
+  // ── R-WC TRACKING FLAG (30/06/2026) ─────────────────────────────────────────
+  // shots_created market type showing early signs of underperformance vs other
+  // market types in BABLab Session Logger live tracking (0% win rate across first
+  // 2 logged legs, both involving Yan Diomande). R-WC110 hierarchy ranks
+  // shots_created as top-tier repeatability based on season averages, but live
+  // betting results aren't yet confirming this. Continue logging and monitor —
+  // do not change hierarchy yet on this small sample, but flag shots_created legs
+  // for extra scrutiny until sample size grows.
+  // ─────────────────────────────────────────────────────────────────────────────
   'Xaver Schlager': {markets:['fouls'],note:'Austria CM — 3fc vs ARG S22, 0 cards. Pure foul asset. Confirmed active WC minutes.'},
   'Patrick Wimmer': {markets:['fouls'],note:'Austria — 3fc vs ARG S22, 0 cards. Foul asset confirmed. Flag for future AUT games.'},
   'Ali Al Hamadi': {markets:['fouled'],note:'Iraq FW — fouled 3x vs France S23. Fouls won asset. New entry.'},
@@ -905,8 +1018,8 @@ const KNOWN_ASSETS = {
   'Frenkie de Jong': {markets:['tackles'],note:'NED MF — 3 tackles vs SWE. Tackles market viable.'},
   // S19 GER vs CIV 20 Jun — reclassified assets
   'Felix Nmecha': {markets:['tackles'],note:'GER MF — 8 tackles vs CIV. ELITE tackles asset ✅. NOT a SOT asset — 0 SOT in match. Reclassified from SOT to tackles only.'},
-  'Ibrahim Sangaré': {markets:['tackles'],note:'CIV MF — 7 tackles vs GER. ELITE tackles asset ✅. NOT a card asset despite HIGH ref — subbed before card came. Back 2+ tackles.'},
-  'Ibrahim Sangare': {markets:['tackles'],note:'CIV MF — 7 tackles vs GER. ELITE tackles ✅. NOT card — sub risk.'},
+  'Ibrahim Sangaré': {markets:['tackles'],note:'CIV MF — G1 vs GER: 7 tackles ✅. R16 vs NOR: tackles:3 fc:1 — 3RD CONSECUTIVE GAME at or above 3 tackles. ELITE repeat-confirmed tackles anchor ✅✅✅. NOT a card asset. Back 2+ tackles every Ivory Coast game.'},
+  'Ibrahim Sangare': {markets:['tackles'],note:'CIV MF — see Ibrahim Sangaré. R16 vs NOR: tackles:3 — 3 consecutive games 3+ tackles. ELITE repeat-confirmed. Back 2+ tackles.'},
   'Nathaniel Brown': {markets:['tackles'],note:'GER LB — 6 tackles vs CIV. Tackles market confirmed ✅.'},
   'Deniz Undav': {markets:['sot','goal'],note:'GER FW — 3 SOT/3 shots, 2 goals vs CIV. New SOT asset ✅. Tournament Striker archetype.'},
   // ECU vs CUR 0-0 21 Jun — new assets
@@ -923,7 +1036,7 @@ const KNOWN_ASSETS = {
   'Ehsan Hajsafi': {markets:['card'],note:'IRN LB — YC vs NZL. Card asset confirmed'},
   'Saeid Ezatolahi': {markets:['fouls','card'],note:'IRN CM — 2 fouls vs NZL + 2 fouls + YC vs Belgium (S21) ✅✅. KNOWN ASSET confirmed. Iran deep-block CM who fouls to disrupt dominant possession teams. Back 2+ fouls committed every Iran game. Card viable with HIGH refs.'},
   // Norway assets confirmed vs Iraq 16 Jun 2026
-  'Erling Haaland': {markets:['sot','goal'],note:'NOR — TOURNAMENT BANKER. 4 SOT/5 shots/2 goals vs Iraq, 5.23 shots/90 in qualifying. SOT + scorer near-lock every Norway start ✅✅'},
+  'Erling Haaland': {markets:['sot','goal'],note:'NOR FW — TOURNAMENT BANKER. G1 vs Iraq: 4 SOT/5 shots/2 goals ✅✅. R16 vs CIV: 2 SOT/2 shots/1 goal — BANKER STATUS RECONFIRMED 3rd straight game. Still undefeated as SOT anchor across tournament. SOT + scorer near-lock every Norway start.'},
   'David Møller Wolfe': {markets:['fouls'],note:'NOR LB — 3 fouls vs Iraq. Foul asset for future Norway games ✅'},
   'Alexander Sørloth': {markets:['fouls'],note:'NOR FW — 3 fouls vs Iraq. CB/defensive foul note ✅'},
   // Iraq assets confirmed vs Norway 16 Jun 2026
@@ -1017,9 +1130,9 @@ const KNOWN_ASSETS = {
   'Danley Jean Jacques': {markets:['fouls','fouled'],note:'HAI CM — 3fc + 3fd vs Scotland. Dual asset ✅'},
   // Ivory Coast
   'Franck Kessié': {markets:['fouls','card'],note:'CIV CM — 3fc + YC vs Ecuador. Fouls + card asset ✅'},
-  'Guéla Doué': {markets:['fouls','card'],note:'CIV CB — 3fc + YC vs Ecuador. Fouls + card asset ✅'},
-  'Yan Diomande': {markets:['tackles','shots_created'],note:'CIV CM — 5 tackles + 5kp vs Ecuador. Tackles market + shots created dual asset ✅'},
-  'Amad Diallo': {markets:['sot','goal'],note:'CIV FW — 2sot/2shots/1goal vs Ecuador. SOT + scorer asset ✅'},
+  'Guéla Doué': {markets:['fouls','tackles','card'],note:'CIV CB — G1: 3fc + YC vs Ecuador ✅. R16 vs NOR: fc:2 tackles:4. NOTE: 4 tackles R16 — previously fc+card asset only. POTENTIAL DUAL fc/tackles asset. Needs one more game to confirm tackles repeatability before backing tackles market. Card supplementary HIGH refs only.'},
+  'Yan Diomande': {markets:['fouled','tackles','shots_created'],note:'CIV CM — G1: 5 tackles + 5kp vs Ecuador ✅. R16 vs NOR: fd:3 tackles:3 shots:1 fc:1. fd:3 confirms fouls-won asset (2nd game 3+ fd) — fouled market added. Tackles repeat-confirmed ✅✅. CAUTION: shots_created legs have lost in BABLab session tracking despite high season avg (3.3kp/g). Treat shots_created threshold bets as lower confidence than season avg alone suggests until more data confirms or denies.'},
+  'Amad Diallo': {markets:['sot','goal'],note:'CIV FW — G1: 2sot/2shots/1goal vs Ecuador ✅. R16 vs NOR: SUPER SUB IMPACT — came on 34th min, scored, rating 9.2. SUPER SUB IMPACT ASSET: SOT + goal threat off the bench in knockout/must-win games. Monitor for future CIV knockout appearances — do not assume starter minutes.'},
   // Ecuador
   'Moisés Caicedo': {markets:['tackles'],note:'ECU CM — RECLASSIFIED 26 Jun: 4 tackles vs GER (78 touches, 13 passes final third but only 1 chance created — kp avg misleads shots_created market). TACKLES asset not shots_created. 4 tackles GS3 adds to DB. Back 2+ tackles every Ecuador game ✅✅'},
   'Enner Valencia': {markets:['fouled','sot'],note:'ECU FW — ELITE DUAL ASSET ✅✅. 2fc+4fd vs CIV + 5SOT/6shots vs CUR + 2fd vs GER. fd:2.5 sot:2.5 avg. Pacey striker vs deep blocks = top fouls-won candidate (R-WC103). SOT confirmed tournament banker level.'},
@@ -1285,8 +1398,8 @@ const KNOWN_ASSETS = {
   'Pervis Estupiñán': {markets:['fouls','tackles'],note:'ECU LB — 2fc + 3 tackles in one game. One-game data. Monitor for knockouts. Flag.'},
   'Enner Valencia': {markets:['sot','fouled'],note:'ECU FW — 3g avg: sot:2.0 fd:2.3. ELITE DUAL ✅✅. SOT banker + fouls-won asset. Back both every Ecuador game. KNOCKOUT TIER 1.'},
   'Aiden O\'Neill': {markets:['fouled'],note:'AUS CM — 3g avg 2.0fd ✅. Fouls-won confirmed across tournament. Back fouled every Australia game.'},
-  'Ibrahim Sangaré': {markets:['tackles'],note:'CIV CM — 2g avg 5.0 tackles ✅✅. ELITE tackles asset. NOT a card asset (sub risk). Back 2+ tackles every Ivory Coast game.'},
-  'Yan Diomande': {markets:['tackles','shots_created'],note:'CIV CM — 3g avg: tkl:3.3 kp:3.3. ELITE shots-created ✅✅ + tackles. Back both every Ivory Coast game.'},
+  'Ibrahim Sangaré': {markets:['tackles'],note:'CIV CM — 3RD CONSECUTIVE GAME 3+ tackles confirmed (G1:7 GS2:? R16:3 vs NOR). ELITE repeat-confirmed tackles anchor ✅✅✅. NOT a card asset (sub risk). Back 2+ tackles every Ivory Coast game.'},
+  'Yan Diomande': {markets:['fouled','tackles','shots_created'],note:'CIV CM — R16 UPDATE: fd:3 tackles:3 fc:1 shots:1 vs NOR. fd:3 = 2nd game 3+ fd — fouls-won market added. Tackles repeat-confirmed ✅✅. CAUTION: shots_created legs 0% win rate in BABLab session tracking (2 logged legs, both lost) — back shots_created with reduced confidence until sample grows. Season avg (3.3kp/g) still valid, flag for extra scrutiny.'},
   'Edo Kayembe': {markets:['fouls'],note:'COD CM — 2g avg 2.5fc ✅. Fouls committed asset. Back 2+ fouls every Congo DR game.'},
   'Ramy Bensebaini': {markets:['tackles'],note:'ALG CB/LB — 2g avg 5.0 tackles ✅✅. ELITE tackles from wide defensive role. Repeat-confirmed. Back every Algeria game.'},
   'Douglas Santos': {markets:['tackles'],note:'BRA LB — 3g avg 3.3 tackles + carded ✅. Tackles asset. Card viable HIGH refs per R-WC109 (supplementary only). Back tackles every Brazil game.'},
@@ -1302,7 +1415,7 @@ const KNOWN_ASSETS = {
   'Matheus Cunha': {markets:['sot','goal'],note:'BRA sub FW — 2g avg: sot:2.0 goals:3. ELITE impact sub ✅✅. Three goals. SOT + goal asset when on pitch. Super Sub protection active.'},
   'Marc Guéhi': {markets:['fouled'],note:'ENG CB — 2g avg 4.5fd ✅✅. ELITE fouls-won. Aerial CB draws fouls at set pieces. Highest fd average for an ENG defender. Back fouled every England start.'},
   'Harry Kane': {markets:['sot','goal','fouls'],note:'ENG FW — TOURNAMENT BANKER ✅✅✅. 3g avg: sot:2.0 fc:1.7 goals+ confirmed. SOT + scorer near-lock. DUAL: also fouls committed viable. Super Sub → Ollie Watkins inherits SOT market (S32 confirmed ✅). KNOCKOUT TIER 1.'},
-  'Erling Haaland': {markets:['sot','goal'],note:'NOR FW — TOURNAMENT BANKER ✅✅✅. 2g avg: sot:3.5 goals:4. Highest SOT avg of any striker alongside Messi. Back SOT + goal every Norway game. KNOCKOUT TIER 1.'},
+  'Erling Haaland': {markets:['sot','goal'],note:'NOR FW — TOURNAMENT BANKER ✅✅✅. R16 UPDATE (vs CIV): 2 SOT/2 shots/1 goal — BANKER RECONFIRMED 3rd straight game. 2g tracked avg: sot:3.0 goals:3 (4 vs Iraq + 1 vs CIV). Still undefeated as SOT anchor across entire tournament. Back SOT + goal every Norway game. KNOCKOUT TIER 1.'},
   'Jonathan David': {markets:['sot','goal'],note:'CAN FW — 3g avg: sot:2.0 goals:3. ELITE SOT + scorer ✅✅✅. Three goals this tournament. Back SOT every Canada game. KNOCKOUT TIER 1.'},
   'Folarin Balogun': {markets:['fouled','sot','goal'],note:'USA FW — 3g avg confirmed: fd:3.0 sot:1.5 goals:2. DUAL ELITE fouls-won + SOT ✅✅. Back both every USA game. Card viable with HIGH refs only (R-WC109).'},
   'Malik Tillman': {markets:['fouled','shots_created'],note:'USA AM — 2g avg: fd:3.5 kp:2.5. ELITE fouls-won ✅✅ + shots-created viable. Back fouled every USA game. KNOCKOUT TIER 1.'},
@@ -1338,6 +1451,46 @@ const KNOWN_ASSETS = {
   'Alphonso Davies': {markets:[],note:'CAN sub — AVOID fd market completely. R1 confirmed: 0fd as Buchanan replacement despite high attacking output. Davies is a dribbler not a player who draws fouls. R-WC122: never back Davies for fd. Do not back any fd market when Davies is the likely Buchanan Super Sub replacement.'},
   'Nathan-Dylan Saliba': {markets:['fouls','card'],note:'CAN CM — R1: 3fc + YC vs RSA. New flag ✅. Fouls committed + card dual asset. Back 2+ fouls committed when Saliba starts. Card viable with HIGH refs.'},
   'Niko Sigur': {markets:['fouls','card'],note:'CAN sub — R1: 3fc + YC vs RSA as a substitute. Impact sub foul profile. Flag for future Canada games when he comes on. Fouls committed + card dual asset.'},
+
+  // ── R16 — Germany 1-1 Paraguay (AET, PAR win 4-3 pens) — 29 Jun 2026 ──
+
+  // Germany R16 updates
+  'Kai Havertz': {markets:['sot','goal','fouls','fouled','card'],note:'GER FW — ELITE MULTI-ASSET ✅✅. R16 vs PAR (120 mins AET): 3 SOT/3 shots/1 goal + 2fc + 3fd + YC. SOT + fouled primary markets. Fouls committed secondary. Card supplementary HIGH refs only (R-WC109). KNOCKOUT TIER 1. Back SOT + fouled every Germany start.'},
+  'Aleksandar Pavlović': {markets:['fouls'],note:'GER CM — ELITE ENFORCER ✅✅✅. R16 UPDATE: 5fc vs Paraguay (120 mins AET). 4g avg now ~3.3fc. Highest sustained fc rate for a Germany midfielder. Back 2+ fouls every Germany game. KNOCKOUT TIER 1.'},
+  'Nathaniel Brown': {markets:['tackles','fouls'],note:'GER LB — DUAL ASSET upgraded R16. 5 tackles + 2fc vs Paraguay (120 mins AET). Tackles confirmed across 3+ games ✅✅. Fouls committed now viable (2fc R16). Back tackles primary + fouls secondary every Germany game.'},
+  'Jamal Musiala': {markets:['fouled','card'],note:'GER AM — 4g avg ~3.0fd ✅✅. ELITE fouls-won. YC vs Paraguay R16 (Jayed ref). R-WC109: card SUPPLEMENTARY only — never anchor. Back fouled primary every Germany game. KNOCKOUT TIER 1.'},
+  'Leroy Sané': {markets:[],note:'GER LW — DOWNGRADED R16. 0 SOT vs Paraguay in 88 mins then subbed. Sub risk confirmed. SOT STRIPPED as reliable KO market. Do not anchor SOT without 90+ min confirmation vs weak opposition. ⚠️'},
+  'Waldemar Anton': {markets:['fouls'],note:'GER CB — 3fc in just 41 mins vs Paraguay! Extreme foul rate per minute. CAUTION: subbed at 41 mins (possible injury). ONE-GAME DATA only. If confirmed fit and starting: back 2+ fouls. ⚠️'},
+  'Jonathan Tah': {markets:['fouls'],note:'GER CB — 2fc vs Paraguay R16 (120 mins AET). Fouls flag — one KO game. Monitor for future Germany games.'},
+
+  // Paraguay R16 updates
+  'Andrés Cubas': {markets:['fouls','card'],note:'PAR CM — ELITE fc ✅✅✅. 4g avg now 3.0fc (12 total). R16 vs GER AET: 1fc only but YC — card market NOW VIABLE. Back 2+ fouls every Paraguay game. Card supplementary HIGH refs (R-WC109). R16 1fc may reflect AET defensive shape suppression.'},
+  'Matías Galarza': {markets:['fouls','tackles','fouled','card'],note:'PAR CM — ELITE MULTI-ASSET ✅✅. R16 UPDATE: 4fc + 4 tackles + 3fd + YC vs Germany (120 mins AET). 3g avg now: fc:2.3 tkl:4.7. UPGRADED: fouled + card markets added. Back fouls committed + tackles primary. Fouled + card supplementary every Paraguay game.'},
+  'Juan Cáceres': {markets:['tackles'],note:'PAR RB — ELITE TACKLES ✅✅✅. 4g avg now 4.5 tkl (18 total). R16 CAUTION: only 2 tackles in 99 mins (subbed AET — possible fatigue). If fit: still back 3+ tackles. Monitor fitness before each game.'},
+  'Junior Alonso': {markets:['tackles','fouls'],note:'PAR CB — UPGRADED R16. 4 tackles + 2fc + 1 SOT vs Germany (119 mins AET). Tackles confirmed ✅✅. Fouls committed now viable (2fc R16). Back tackles primary every Paraguay game.'},
+  'Damián Bobadilla': {markets:['tackles'],note:'PAR CM — 5 tackles vs Germany R16 (99 mins AET). ELITE tackles asset confirmed ✅✅. Back 2+ tackles every Paraguay game.'},
+  'José Canale': {markets:['tackles'],note:'PAR CB — 5 tackles vs Germany R16 (120 mins AET). Tackles asset confirmed ✅. Back 2+ tackles every Paraguay game.'},
+  'Julio Enciso': {markets:['fouled','sot','goal'],note:'PAR MF — UPGRADED R16. 1 SOT/1 goal vs Germany (57 mins — subbed). fd avg 2.7 retained. SOT + goal markets now added. Sub risk active — scored and subbed early. Confirm minutes before anchoring SOT. Back fouled primary every Paraguay game.'},
+  'Miguel Almirón': {markets:['fouled'],note:'PAR MF — REINSTATED (suspension served GS3). R16 vs Germany: 3fd in 90 mins. Fouls-won confirmed ✅. Back fouled every Paraguay game when confirmed starter.'},
+
+  // ── R16 — Netherlands 1-1 Morocco (AET, MAR win 3-2 pens) — 30 Jun 2026 ──
+
+  // Morocco R16 updates/new
+  'Neil El Aynaoui': {markets:['fouls','tackles','sot'],note:'MAR MF — ELITE MULTI-ASSET ✅✅✅. R16 UPDATE: 5fc + 4 tackles + 1 SOT vs Netherlands (120 mins AET). Primary Morocco fouler AND tackles anchor confirmed again. SOT flag added (1 SOT R16). Back fouls + tackles every Morocco game. KNOCKOUT TIER 1.'},
+  'Ismael Saibari': {markets:['fouls','goal','sot'],note:'MAR FW/CM — RECLASSIFIED R16. 5 FOULS vs Netherlands (120 mins AET) — highest in match, 0 SOT. CRITICAL: In KO defensive Morocco setup Saibari commits fouls not generates SOT. Back FOULS COMMITTED primary in KO context. SOT only viable when Morocco dominating/winning early (not defensive block). Goal market retained (scored vs Brazil).'},
+  'Noussair Mazraoui': {markets:['tackles'],note:'MAR RB — 5 tackles vs Netherlands R16 (120 mins AET). ELITE tackles asset new ✅✅. Back 2+ tackles every Morocco game.'},
+  'Achraf Hakimi': {markets:['fouled','shots'],note:'MAR RB — DUAL ELITE confirmed R16 ✅✅. 2fd + 1 SOT + 2 shots vs Netherlands (120 mins AET). Shots market (2 shots) confirmed again. fd reliable across tournament. Back fouls-won + total shots every Morocco game.'},
+  'Issa Diop': {markets:['sot','goal','fouls','card'],note:'MAR CB — IMPACT SCORER R16. 1 SOT/1 goal + 2fc + YC vs Netherlands (120 mins AET). Goal via header/set piece. Card + fouls flag. One-game KO data — monitor for future Morocco games. ✅'},
+  'Ayyoub Bouaddi': {markets:['fouled'],note:'MAR CM — 2fd + 2 shots vs Netherlands R16 (79 mins). Fouls-won flag. New player, one-game data. Monitor for Morocco knockouts. ⚠️'},
+
+  // Netherlands R16 updates
+  'Denzel Dumfries': {markets:['fouls','tackles','shots_created'],note:'NED RB — RECLASSIFIED R16. 4fc vs Morocco (120 mins AET) — primary Netherlands fouler in match. Add FOULS COMMITTED as primary alongside tackles + shots_created. 0 SOT R16 — SOT stripped in KO tight-game context. Back fc + shots_created every Netherlands game.'},
+  'Frenkie de Jong': {markets:['fouls','fouled','tackles'],note:'NED CM — UPGRADED R16. 3fc + 3fd + 2 tackles vs Morocco (110 mins AET). Previously tackles only. Now DUAL MARKET: fouls committed + fouled both viable. Back fc + fd every Netherlands game.'},
+  'Cody Gakpo': {markets:['sot','goal'],note:'NED FW — ELITE SOT + GOAL confirmed R16 ✅✅✅. 1 SOT/1 goal vs Morocco (113 mins AET). Goal added to profile. 3+ game SOT confirmed. KNOCKOUT TIER 1. Back SOT + goal every Netherlands game.'},
+  'Crysencio Summerville': {markets:['fouled','tackles'],note:'NED FW — REVISED R16. 0 SOT in 120 mins vs Morocco — SOT STRIPPED in KO tight-game. 3 tackles + 1fd R16 — tackles market emerging. Back tackles + fouled in KO context. NOTE: sub risk REMOVED — confirmed 120 mins R16.'},
+  'Ryan Gravenberch': {markets:[],note:'NED CM — DOWNGRADED R16. 0 tackles in 86 mins vs Morocco. Tackles UNRELIABLE in KO context. Strip for KO games. Monitor only. ⚠️'},
+  'Jan Paul van Hecke': {markets:['tackles'],note:'NED CB — 4 tackles vs Morocco R16 (120 mins AET). Tackles asset flag ✅. Monitor for future Netherlands games.'},
+  'Micky van de Ven': {markets:['fouls','sot'],note:'NED CB — 2fc + 1 SOT vs Morocco R16 (86 mins). Dual flag: fouls committed + SOT (unusual CB SOT profile). One-game data — monitor.'},
 };
 
 
@@ -1444,6 +1597,84 @@ const KNOWN_REFS = {
   'Darío Herrera': {yc_per_game:5.8,level:'HIGH',note:'5.8 YC/game. HIGH. WC CONFIRMED S21 vs BEL vs IRN. Cards + fouls markets viable.'},
   'Dario Herrera': {yc_per_game:5.8,level:'HIGH',note:'5.8 YC/game. HIGH. WC CONFIRMED S21 BEL vs IRN. Cards + fouls markets viable.'},
 };
+
+// ─── REFEREE DATABASE (localStorage, seeded from KNOWN_REFS) ────────────────
+// Schema per entry: { name, country, careerYC, careerFouls, wcYC, wcFouls, level, note, wcGames }
+// 'level' values: HIGH | MOD_HIGH | STANDARD | WC_PASSIVE | WC_PASSIVE_EXTREME | UNKNOWN
+
+function saveRefDB(){try{localStorage.setItem('blab-refdb',JSON.stringify(refDB))}catch(e){}}
+function loadRefDB(){
+  try{
+    const r=localStorage.getItem('blab-refdb');
+    if(r){refDB=JSON.parse(r);return;}
+  }catch(e){}
+  // First run — seed from KNOWN_REFS
+  seedRefDBFromKnown();
+}
+function seedRefDBFromKnown(){
+  // Deduplicate: prefer the "Name, Country" form (more complete key)
+  Object.entries(KNOWN_REFS).forEach(([key,val])=>{
+    const hasCountry=key.includes(',');
+    // Extract bare name (before the comma)
+    const bareName=hasCountry?key.split(',')[0].trim():key;
+    const country=hasCountry?key.split(',').slice(1).join(',').trim():'';
+    // Only write if not already set (country-suffixed form wins)
+    if(!refDB[bareName]||hasCountry){
+      refDB[bareName]={
+        name:bareName,
+        country:country,
+        careerYC:typeof val.yc_per_game==='number'?val.yc_per_game:null,
+        careerFouls:null,
+        wcYC:null,
+        wcFouls:null,
+        level:val.level||'UNKNOWN',
+        note:val.note||'',
+        wcGames:0
+      };
+    }
+  });
+  saveRefDB();
+}
+function lookupRef(apiName){
+  // apiName is e.g. "Wilton Pereira Sampaio, Brazil" or "Wilton Sampaio"
+  if(!apiName)return null;
+  const n=norm(apiName);
+  const bareName=n.includes(',')?n.split(',')[0].trim():n;
+  // 1. localStorage refDB by bare name (NFC-normalised fast path)
+  const raw=refDB[bareName]||refDB[n]
+    ||Object.entries(refDB).find(([k])=>norm(k)===bareName||norm(k)===n)?.[1]
+    ||null;
+  if(raw)return _refCompat(raw);
+  // 2. Fall back to KNOWN_REFS
+  if(KNOWN_REFS[apiName])return _knownRefToSchema(apiName,KNOWN_REFS[apiName]);
+  if(KNOWN_REFS[bareName])return _knownRefToSchema(bareName,KNOWN_REFS[bareName]);
+  return null;
+}
+// Return an object with yc_per_game/level/note for backward-compat with all callers
+function _refCompat(r){
+  // Prefer WC YC/game over career if available (more predictive in tournament context)
+  const yc=r.wcYC!=null?r.wcYC:(r.careerYC!=null?r.careerYC:'?');
+  return{...r, yc_per_game:yc};
+}
+function _knownRefToSchema(name,val){
+  const hasCountry=name.includes(',');
+  return{
+    name:hasCountry?name.split(',')[0].trim():name,
+    country:hasCountry?name.split(',').slice(1).join(',').trim():'',
+    careerYC:typeof val.yc_per_game==='number'?val.yc_per_game:null,
+    careerFouls:null,wcYC:null,wcFouls:null,
+    level:val.level||'UNKNOWN',note:val.note||'',wcGames:0
+  };
+}
+function saveRefEntry(entry){
+  // entry must have .name as the canonical key
+  refDB[entry.name]=entry;
+  saveRefDB();
+}
+function deleteRefEntry(name){
+  delete refDB[name];
+  saveRefDB();
+}
 
 // ─── TEAM DATABASE (v20.6) ───────────────────────────────
 let teamDB = {};
@@ -1598,6 +1829,8 @@ async function loadStorage(){
   try{const r=localStorage.getItem('blab-sessions');if(r)sessionLog=JSON.parse(r)}catch(e){}
   // v20.6: Team stats DB
   loadTeamDB();
+  // Referee DB
+  loadRefDB();
 }
 async function saveStorage(){
   try{localStorage.setItem('blab-db',JSON.stringify(playerDB));localStorage.setItem('blab-calls',String(callsUsed))}catch(e){}
@@ -1643,6 +1876,7 @@ function showPage(name,idx){
   if(name==='database')renderDB();
   if(name==='patterns')renderPatterns();
   if(name==='analytics')renderAnalytics();
+  if(name==='refs')renderRefDB();
 }
 
 // ─── LOAD FIXTURES ────────────────────────────────────────
@@ -1658,7 +1892,7 @@ async function loadFixtures(){
     if(!fixtures.length)throw new Error('No fixtures returned');
     // Cache fixtures for session restore
     try{localStorage.setItem('blab-fixtures',JSON.stringify(fixtures));localStorage.setItem('blab-fixtures-ts',String(Date.now()))}catch(e){}
-    const done=fixtures.filter(f=>f.fixture.status.short==='FT').length;
+    const done=fixtures.filter(f=>['FT','AET','PEN'].includes(f.fixture.status.short)).length;
     setStatus('fixStatus','ok',`✅ ${fixtures.length} fixtures — ${done} completed · cached locally`);
     document.getElementById('fixSection').style.display='block';
     document.getElementById('cacheBtn').style.display='block';
@@ -1681,7 +1915,7 @@ function renderFixtures(group){
   const filtered=group==='All'?fixtures:fixtures.filter(f=>getGroup(f)===group);
   const sorted=[...filtered].sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date));
   document.getElementById('fixList').innerHTML=sorted.map(f=>{
-    const ft=f.fixture.status.short==='FT';
+    const ft=['FT','AET','PEN'].includes(f.fixture.status.short);
     const date=new Date(f.fixture.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     const time=new Date(f.fixture.date).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const done=playerDB[`fix_${f.fixture.id}`];
@@ -1697,7 +1931,7 @@ function renderFixtures(group){
 }
 
 function populateUpcoming(){
-  const upcoming=fixtures.filter(f=>f.fixture.status.short==='NS').sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date));
+  const upcoming=fixtures.filter(f=>!['FT','AET','PEN'].includes(f.fixture.status.short)).sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date));
   document.getElementById('upcomingSelect').innerHTML='<option value="">— Select fixture —</option>'+upcoming.map(f=>{
     const date=new Date(f.fixture.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     return `<option value="${f.fixture.id}">${f.teams.home.name} vs ${f.teams.away.name} (${date})</option>`;
@@ -1790,7 +2024,7 @@ function storePlayerData(teams,fix){
 // ─── RENDER STATS PAGE ───────────────────────────────────
 function renderStatsPage(teams,fix){
   const ref=fix.fixture.referee||'Unknown';
-  const refData=KNOWN_REFS[ref]||{yc_per_game:'?',level:'UNKNOWN'};
+  const refData=lookupRef(ref)||{yc_per_game:'?',level:'UNKNOWN'};
   const refColor=refData.level==='HIGH'?'var(--red)':refData.level==='MOD_HIGH'?'var(--orange)':refData.level==='LOW'?'var(--dim)':refData.level==='WC_PASSIVE'?'var(--purple)':'var(--mid)';
 
   let html=`
@@ -1846,7 +2080,7 @@ function generateDebrief(teams,fix){
   const topSOT=all.filter(p=>p.s.shots?.on>=2).sort((a,b)=>(b.s.shots.on||0)-(a.s.shots.on||0));
   const topFouled=all.filter(p=>p.s.fouls?.drawn>=3).sort((a,b)=>(b.s.fouls.drawn||0)-(a.s.fouls.drawn||0));
   const topTackles=all.filter(p=>p.s.tackles?.total>=3).sort((a,b)=>(b.s.tackles.total||0)-(a.s.tackles.total||0));
-  const newAssets=all.filter(p=>!KNOWN_ASSETS[p.player.name]&&((p.s.fouls?.committed>=3)||(p.s.shots?.on>=2&&p.s.fouls?.committed>=2)));
+  const newAssets=all.filter(p=>!lookupAsset(p.player.name)&&((p.s.fouls?.committed>=3)||(p.s.shots?.on>=2&&p.s.fouls?.committed>=2)));
 
   let debriefText=`📊 BABLab Match Debrief — ${fix.teams.home.name} ${fix.goals.home}-${fix.goals.away} ${fix.teams.away.name}\n\n`;
 
@@ -1856,7 +2090,7 @@ function generateDebrief(teams,fix){
     html+=`<div class="debrief-section"><h4>🔵 Top Foulers</h4>`;
     debriefText+=`TOP FOULERS:\n`;
     topFoulers.forEach(p=>{
-      const asset=KNOWN_ASSETS[p.player.name];
+      const asset=lookupAsset(p.player.name);
       const arch=getArchetypeBadge(p.player.name);
       html+=`<div class="debrief-item"><b>${p.player.name}</b>${arch} (${p.teamName}) — ${p.s.fouls.committed} fouls${p.s.cards?.yellow?', 🟨 carded':''}${asset?' ✅ known asset':''}${p.s.games?.position==='D'?' — CB/defensive note':''}</div>`;
       debriefText+=`• ${p.player.name} (${p.teamName}): ${p.s.fouls.committed} fouls${p.s.cards?.yellow?', carded':''}\n`;
@@ -1927,7 +2161,8 @@ function generateDebrief(teams,fix){
   });
   debriefText += fullStatTable;
 
-  html+=`<button class="copy-btn" onclick="copyText(${JSON.stringify(debriefText)})">📋 Copy full debrief for Claude</button></div>`;
+  const _ck='_cb_'+Date.now();_copyStore[_ck]=debriefText;
+  html+=`<button class="copy-btn" onclick="copyStored('${_ck}',this)">📋 Copy full debrief for Claude</button></div>`;
   return html;
 }
 
@@ -1940,7 +2175,7 @@ function generateBABs(teams,fix){
   }));
 
   const ref=fix.fixture.referee||'';
-  const refData=KNOWN_REFS[ref]||{yc_per_game:4.0,level:'UNKNOWN'};
+  const refData=lookupRef(ref)||{yc_per_game:4.0,level:'UNKNOWN'};
   const highCardRef=refData.yc_per_game>=4.5;
   const lowCardRef=refData.yc_per_game<3.5;
 
@@ -1961,7 +2196,7 @@ function generateBABs(teams,fix){
 
   // SOT candidates
   all.filter(p=>p.s.shots?.on>=2&&p.s.games?.minutes>=70).forEach(p=>{
-    const asset=KNOWN_ASSETS[p.player.name];
+    const asset=lookupAsset(p.player.name);
     candidates.push({type:'sot',player:p.player.name,team:p.teamName,market:`${p.player.name} 1+ shot on target`,
       conf:asset?'HIGH':'MED',notes:`${p.s.shots.on} SOT in this match${asset?' — known asset':''}`,
       rules:['R_WC_SUB'],pos:p.s.games?.position});
@@ -2074,10 +2309,12 @@ function generateBABs(teams,fix){
   if(!babs.length){
     html+=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Insufficient data for BABs</div><div class="empty-text">Not enough qualifying candidates from this match</div></div>`;
   } else {
-    let babText=`⚡ BABLab BABs — ${fix.teams.home.name} vs ${fix.teams.away.name}\n\n`;
+    const modeLabel=BAB_MODE==='double'?'Doubles':BAB_MODE==='single'?'Singles':'Trebles';
+    let babText=`⚡ BABLab BABs (${modeLabel}) — ${fix.teams.home.name} vs ${fix.teams.away.name}\n\n`;
     babs.forEach((bab)=>{
-      html+=`<div class="bab-card" style="border-color:${bab.label.includes('BEST')?'var(--green)':'var(--purple)'}">
-        <div class="bab-num" style="color:${bab.label.includes('BEST')?'var(--green)':'var(--purple)'}">${bab.label}</div>
+      const cardColor=bab.isSingle?'var(--gold)':bab.label.includes('BEST')?'var(--green)':'var(--purple)';
+      html+=`<div class="bab-card" style="border-color:${cardColor}">
+        <div class="bab-num" style="color:${cardColor}">${bab.label}</div>
         <div style="font-size:10px;color:var(--dim);margin-bottom:4px">${bab.sublabel}</div>
         ${bab.context?`<div style="font-size:10px;color:var(--orange);margin-bottom:8px;padding:4px 8px;background:#1a1000;border-radius:4px">⚡ ${bab.context}</div>`:''}
         <div class="bab-legs">`;
@@ -2100,8 +2337,10 @@ function generateBABs(teams,fix){
       babText+=`Rules: ${bab.rules||'N/A'}\n\n`;
       html+=`</div>`;
     });
-    html+=`<div style="font-size:11px;color:var(--dim);margin:8px 0">⚡ Sky Bet booster → apply to Best BAB · Both BABs £2.50 · Check odds clear EV gate (3.0+ Best / 6.0+ Longshot)</div>`;
-    html+=`<button class="copy-btn" onclick="copyText(${JSON.stringify(babText)})">📋 Copy BABs for Claude</button>`;
+    const modeFooter=BAB_MODE==='single'?'Single pick · Log result for win-rate tracking · No odds gate':BAB_MODE==='double'?'⚡ Sky Bet booster → apply to Best Double · Both £2.50 · EV gate: 2.5+ Best / 5.0+ Longshot':'⚡ Sky Bet booster → apply to Best BAB · Both BABs £2.50 · Check odds clear EV gate (3.0+ Best / 6.0+ Longshot)';
+    html+=`<div style="font-size:11px;color:var(--dim);margin:8px 0">${modeFooter}</div>`;
+    const _pmck='_cb_'+Date.now();_copyStore[_pmck]=babText;
+    html+=`<button class="copy-btn" onclick="copyStored('${_pmck}',this)">📋 Copy BABs for Claude</button>`;
   }
 
   html+=`</div>`;
@@ -2152,6 +2391,24 @@ const HIERARCHY_SCORE={
 
 function scoreCandidate(c){
   return HIERARCHY_SCORE[c.type]||1.0;
+}
+
+// ─── BAB MODE ─────────────────────────────────────────────
+let BAB_MODE='treble'; // 'treble' | 'double' | 'single'
+function setBabMode(mode){
+  BAB_MODE=mode;
+  ['treble','double','single'].forEach(m=>{
+    const btn=document.getElementById('modeBtn-'+m);
+    if(!btn)return;
+    btn.style.background=m===mode?'var(--green)':'var(--s2)';
+    btn.style.color=m===mode?'#000':'var(--dim)';
+  });
+  const desc=document.getElementById('modeDesc');
+  if(desc){
+    if(mode==='treble')desc.textContent='Best + Longshot trebles · Target 3–5x / 6x+';
+    else if(mode==='double')desc.textContent='Best + Longshot doubles · Target 2.5–5x / 5x+';
+    else desc.textContent='Single highest-confidence pick · No odds gate · For win-rate tracking';
+  }
 }
 
 function buildTwoBABs(candidates,fix,refData){
@@ -2206,66 +2463,99 @@ function buildTwoBABs(candidates,fix,refData){
   const bestPool=filtered.filter(c=>c.type!=='card').sort((a,b)=>scoreCtx(b)-scoreCtx(a));
   const longPool=filtered.sort((a,b)=>scoreCtx(b)-scoreCtx(a));
 
-  // ── BEST BAB: pick top 3 legs from hierarchy, max 1 per player ──
+  const mode=BAB_MODE||'treble';
+  const ctxSummary=Object.keys(ctx).length>0
+    ?`Context active: ${Object.keys(ctx).map(k=>k.toUpperCase()).join(', ')} · Multiplier: ${ctxMult.toFixed(2)}x`
+    :'No context flags set — toggle flags on Edge tab for adjusted scoring';
+  const ctxWarning=isPassive?'WC_PASSIVE ref — card legs stripped (R-WC53/R-WC109)':isDeadRubber?'Dead rubber context — involvement legs stripped, confidence reduced (R-WC113)':isBlowout?'⚠️ BLOWOUT RISK — foul/card legs stripped (R-WC77/R-WC101)':null;
+
+  // ── SINGLE MODE ──
+  if(mode==='single'){
+    const pick=bestPool[0];
+    if(!pick)return[];
+    return[{
+      label:'🎯 BEST SINGLE',
+      sublabel:`Tier: x${(HIERARCHY_SCORE[pick.type]||1).toFixed(2)} (R-WC110) · Single pick — no odds gate · Log for win-rate tracking`,
+      legs:[pick],
+      context:ctxSummary,
+      rules:'R-WC110: Highest hierarchy score in pool. R-WC109: Cards excluded. No EV gate — individual leg tracking only.',
+      warning:ctxWarning,
+      isSingle:true
+    }];
+  }
+
+  const legCount=mode==='double'?2:3;
+
+  // ── BEST legs: top N from hierarchy, max 1 per player ──
   const bestLegs=[];
   const bestUsed=new Set();
   for(const c of bestPool){
     if(bestUsed.has(c.player))continue;
     bestLegs.push(c);
     bestUsed.add(c.player);
-    if(bestLegs.length===3)break;
+    if(bestLegs.length===legCount)break;
   }
 
-  // ── LONGSHOT BAB: upgraded thresholds + card supplementary ──
+  // ── LONGSHOT legs: upgraded thresholds + card supplementary (treble only) ──
   const longLegs=[];
   const longUsed=new Set();
   for(const c of longPool.filter(lc=>lc.type!=='card')){
     if(longUsed.has(c.player))continue;
-    if(bestUsed.has(c.player)&&longLegs.length<2){
+    if(bestUsed.has(c.player)&&longLegs.length<legCount-1){
       longLegs.push({...c,market:upgradeThreshold(c),notes:c.notes+' (upgraded threshold)'});
       longUsed.add(c.player);
     } else if(!longUsed.has(c.player)){
       longLegs.push(c);
       longUsed.add(c.player);
     }
-    if(longLegs.length===2)break;
+    if(longLegs.length===legCount-1)break;
   }
-  // 3rd longshot leg: card candidate if ref allows, else next best
-  if(!isPassive){
-    const cardLeg=filtered.find(c=>c.type==='card'&&!longUsed.has(c.player));
-    if(cardLeg&&longLegs.length<3){
-      longLegs.push({...cardLeg,conf:'MED',notes:cardLeg.notes+' — supplementary leg, R-WC109'});
+  if(mode==='treble'){
+    // 3rd longshot leg: card candidate if ref allows, else next best
+    if(!isPassive){
+      const cardLeg=filtered.find(c=>c.type==='card'&&!longUsed.has(c.player));
+      if(cardLeg&&longLegs.length<3){
+        longLegs.push({...cardLeg,conf:'MED',notes:cardLeg.notes+' — supplementary leg, R-WC109'});
+      }
+    }
+    if(longLegs.length<3){
+      const fallback=longPool.find(c=>c.type!=='card'&&!longUsed.has(c.player));
+      if(fallback&&longLegs.length<3)longLegs.push(fallback);
+    }
+  } else {
+    // Double: fill 2nd longshot slot with next-best if needed
+    if(longLegs.length<2){
+      const fallback=longPool.find(c=>c.type!=='card'&&!longUsed.has(c.player));
+      if(fallback)longLegs.push(fallback);
     }
   }
-  if(longLegs.length<3){
-    const fallback=longPool.find(c=>c.type!=='card'&&!longUsed.has(c.player));
-    if(fallback&&longLegs.length<3)longLegs.push(fallback);
-  }
-
-  // Build context summary for display
-  const ctxSummary=Object.keys(ctx).length>0
-    ?`Context active: ${Object.keys(ctx).map(k=>k.toUpperCase()).join(', ')} · Multiplier: ${ctxMult.toFixed(2)}x`
-    :'No context flags set — toggle flags on Edge tab for adjusted scoring';
 
   const babs=[];
-  if(bestLegs.length>=2){
+  const minBest=legCount===2?2:2;
+  const minLong=legCount===2?2:2;
+
+  if(bestLegs.length>=minBest){
+    const isDouble=mode==='double';
     babs.push({
-      label:'🎯 BEST BAB',
-      sublabel:'Highest-confidence 3-leg combination · Target ~3–5x odds · £2.50 stake',
+      label:isDouble?'🎯 BEST DOUBLE':'🎯 BEST BAB',
+      sublabel:isDouble?'Highest-confidence 2-leg double · Target 2.5–5x odds · £2.50 stake':'Highest-confidence 3-leg combination · Target ~3–5x odds · £2.50 stake',
       legs:bestLegs,
       context:ctxSummary,
-      rules:'R-WC110: Legs ranked by repeatability hierarchy. R-WC109: Zero card legs. EV gate: positive EV + 3.0+ combined odds required.',
-      warning:isPassive?'WC_PASSIVE ref — card legs stripped (R-WC53/R-WC109)':isDeadRubber?'Dead rubber context — involvement legs stripped, confidence reduced (R-WC113)':isBlowout?'⚠️ BLOWOUT RISK — foul/card legs stripped (R-WC77/R-WC101)':null
+      rules:isDouble?'R-WC110: Legs ranked by repeatability hierarchy. R-WC109: Zero card legs. EV gate: 2.5+ combined odds required.':'R-WC110: Legs ranked by repeatability hierarchy. R-WC109: Zero card legs. EV gate: positive EV + 3.0+ combined odds required.',
+      warning:ctxWarning,
+      minOddsGate:isDouble?2.5:3.0
     });
   }
-  if(longLegs.length>=2){
+  if(longLegs.length>=minLong){
+    const isDouble=mode==='double';
     babs.push({
-      label:'🎲 LONGSHOT BAB',
-      sublabel:'Punter\'s pick — higher odds · Target 6x+ odds · £2.50 stake',
+      label:isDouble?'🎲 LONGSHOT DOUBLE':'🎲 LONGSHOT BAB',
+      sublabel:isDouble?'Higher-variance 2-leg double · Target 5x+ odds · £2.50 stake':'Punter\'s pick — higher odds · Target 6x+ odds · £2.50 stake',
       legs:longLegs,
       context:ctxSummary,
-      rules:'R-WC109: Card leg in supplementary position only — never anchor. EV gate applies. 6.0+ odds target.',
-      warning:isPassive?'WC_PASSIVE ref — card leg replaced with next-best foul leg':'Card leg included as odds booster only. R-WC109 compliant.'
+      rules:isDouble?'R-WC109: Card legs excluded. EV gate: 5.0+ combined odds required.':'R-WC109: Card leg in supplementary position only — never anchor. EV gate applies. 6.0+ odds target.',
+      warning:isDouble?ctxWarning:(isPassive?'WC_PASSIVE ref — card leg replaced with next-best foul leg':'Card leg included as odds booster only. R-WC109 compliant.'),
+      minOddsGate:isDouble?5.0:6.0
     });
   }
   return babs;
@@ -2317,7 +2607,7 @@ function renderPlayerList(teams,idx,sort){
     const pos=s.games?.position||'';
     const passes=s.passes?.total||0,keyPasses=s.passes?.key||0;
     const drib=s.dribbles?.attempts||0;
-    const asset=KNOWN_ASSETS[p.player.name];
+    const asset=lookupAsset(p.player.name);
     const bab=fc>=2||sot>=2||fd>=3||yc>0||rc>0;
 
     const flags=[];
@@ -2355,6 +2645,59 @@ function renderPlayerList(teams,idx,sort){
   }).join('');
 }
 
+// ─── LINEUP AUTO-FETCH HELPERS ───────────────────────────
+function setLineupAutoStatus(msg,type){
+  const el=document.getElementById('lineupAutoStatus');
+  const btn=document.getElementById('lineupRetryBtn');
+  if(!el)return;
+  if(!msg){el.style.display='none';el.textContent='';if(btn)btn.style.display='none';return;}
+  el.style.display='block';
+  el.textContent=msg;
+  el.style.background=type==='ok'?'#0a2000':type==='warn'?'#1a1000':'var(--s2)';
+  el.style.color=type==='ok'?'var(--green)':type==='warn'?'var(--orange)':'var(--dim)';
+  if(btn)btn.style.display=type==='warn'?'inline-block':'none';
+}
+
+function applyAutoLineup(lineups, fixtureId){
+  // Store fixture ID so retry knows which fixture to fetch
+  window._lastLineupFixtureId=fixtureId;
+
+  const starters=[];
+  lineups.forEach(team=>{
+    (team.startXI||[]).forEach(entry=>{
+      const name=entry?.player?.name;
+      if(name)starters.push(norm(name));
+    });
+  });
+
+  const textarea=document.getElementById('lineupGate');
+  if(!textarea)return;
+
+  if(starters.length>=11){
+    // Confirmed lineups available — auto-populate gate
+    textarea.value=starters.join(', ');
+    confirmLineup();
+    setLineupAutoStatus(`✅ ${starters.length} starters auto-fetched from API (R-WC100 gate active)`,'ok');
+  } else {
+    // Team sheets not yet released
+    setLineupAutoStatus('Lineups not yet confirmed — check back closer to kickoff. Paste manually below or use Retry.','warn');
+  }
+}
+
+async function retryLineupFetch(){
+  const key=getKey();
+  const fixtureId=window._lastLineupFixtureId||document.getElementById('upcomingSelect')?.value;
+  if(!fixtureId||!key){setLineupAutoStatus('No fixture selected','warn');return;}
+  setLineupAutoStatus('Fetching lineups…','');
+  try{
+    const res=await fetch(`https://v3.football.api-sports.io/fixtures/lineups?fixture=${fixtureId}`,{headers:{'x-apisports-key':key}});
+    const data=await res.json();incCalls();
+    applyAutoLineup(data.response||[], fixtureId);
+  }catch(e){
+    setLineupAutoStatus('Fetch failed — paste manually below','warn');
+  }
+}
+
 // ─── PRE-MATCH BAB BUILDER ────────────────────────────────
 async function buildPreMatchBABs(){
   const key=getKey();
@@ -2377,6 +2720,7 @@ async function buildPreMatchBABs(){
     const lineupData=await lineupRes.json();incCalls();
     const h2hData=await h2hRes.json();incCalls();
 
+    applyAutoLineup(lineupData.response||[], fixtureId);
     setStatus('prematchStatus','ok','✅ Data loaded — generating BABs');
     renderPreMatchBABs(fix,lineupData.response||[],h2hData.response||[]);
 
@@ -2385,7 +2729,7 @@ async function buildPreMatchBABs(){
 
 function renderPreMatchBABs(fix,lineups,h2h){
   const ref=fix.fixture.referee||'TBC';
-  const refData=KNOWN_REFS[ref]||{yc_per_game:'TBC',level:'UNKNOWN'};
+  const refData=lookupRef(ref)||{yc_per_game:'TBC',level:'UNKNOWN'};
   const refColor=refData.level==='HIGH'?'var(--red)':refData.level==='MOD_HIGH'?'var(--orange)':refData.level==='LOW'?'var(--dim)':refData.level==='WC_PASSIVE'?'var(--purple)':'var(--mid)';
 
   // Get home/away players from database
@@ -2403,6 +2747,7 @@ function renderPreMatchBABs(fix,lineups,h2h){
     return lastMatch.rc>0&&(p.team===fix.teams.home.name||p.team===fix.teams.away.name);
   });
 
+  const refKnown=!!lookupRef(ref);
   let html=`<div class="match-hdr">
     <div class="match-teams">${fix.teams.home.name} vs ${fix.teams.away.name}</div>
     <div class="match-meta">
@@ -2412,6 +2757,19 @@ function renderPreMatchBABs(fix,lineups,h2h){
       ${refData.note?`<br><span style="font-size:10px;color:var(--dim)">${refData.note}</span>`:''}
     </div>
   </div>`;
+  if(!refKnown&&ref!=='TBC'){
+    const encodedRef=encodeURIComponent(ref);
+    html+=`<div style="background:#1a0800;border:2px solid var(--orange);border-radius:8px;padding:10px 12px;margin:0 0 10px;display:flex;align-items:flex-start;gap:10px">
+      <div style="font-size:18px;line-height:1">⚠️</div>
+      <div style="flex:1">
+        <div style="font-weight:700;color:var(--orange);font-size:12px;margin-bottom:3px">UNKNOWN REF — Add to Database</div>
+        <div style="font-size:11px;color:var(--dim);margin-bottom:6px"><b style="color:var(--text)">${ref}</b> is not in your Referee DB. Card/foul market confidence degraded until stats are entered.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button onclick="showPage('refs',7);prefillRefForm('${ref.replace(/'/g,"\\'")}')" style="font-size:11px;padding:5px 10px;background:#2a1200;color:var(--orange);border:1px solid #5a3000;border-radius:6px;cursor:pointer">+ Add to Ref DB</button>
+        </div>
+      </div>
+    </div>`;
+  }
 
   // Suspension warnings
   if(suspendedPlayers.length){
@@ -2460,7 +2818,7 @@ function renderPreMatchBABs(fix,lineups,h2h){
   if(homePlayers.length||awayPlayers.length){
     html+=`<div class="debrief-card"><div class="debrief-title">📊 Player Form from Database</div>`;
     [...homePlayers,...awayPlayers].slice(0,12).forEach(p=>{
-      const asset=KNOWN_ASSETS[p.name];
+      const asset=lookupAsset(p.name);
       const isSuspended=suspendedPlayers.find(s=>s.name===p.name);
       const avgSC=(p.matches.reduce((a,m)=>a+(m.keyPasses||0),0)/p.matches.length).toFixed(1);
       const avgTackles=(p.matches.reduce((a,m)=>a+(m.tackles||0),0)/p.matches.length).toFixed(1);
@@ -2473,80 +2831,23 @@ function renderPreMatchBABs(fix,lineups,h2h){
     html+=`</div>`;
   }
 
-  // Generate BABs from database form
+  // Generate candidate shortlist from rules engine — odds play NO part in this step.
+  // R-WC: candidate generation must stay odds-blind; odds only filter what survives into the BAB.
   const prematchCandidates=generatePreMatchCandidates([...homePlayers,...awayPlayers],refData,suspendedPlayers);
   // v20.6: add match/team market candidates
   const matchMarketCandidates=generateMatchMarketCandidates(fix,refData);
   const allCandidates=[...prematchCandidates,...matchMarketCandidates];
-  const babs=buildTwoBABs(allCandidates,fix,refData);
 
-  // Store candidate pool globally so swap function can access it
+  // Store FULL unfiltered candidate pool globally so swap + shortlist filtering both work off it
   window._babCandidates=allCandidates;
   window._babFix=fix;
   window._babRefData=refData;
+  window._babRef=ref;
+  window._shortlistDeadSet=new Set();
 
-  setTimeout(()=>updateSuperSubPanel(babs),100);
-
-  html+=`<div class="sec-title" style="margin:12px 0 8px">⚡ Suggested BABs</div>`;
-
-  if(!babs.length){
-    html+=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Insufficient database data</div><div class="empty-text">Pull more post-match stats to build player form data for BAB generation</div></div>`;
-  } else {
-    let babText=`⚡ Pre-Match BABs — ${fix.teams.home.name} vs ${fix.teams.away.name}\nRef: ${ref} (${refData.yc_per_game} YC/game — ${refData.level})\n\n`;
-    babs.forEach((bab,babIdx)=>{
-      html+=`<div class="bab-card" id="babcard_${babIdx}" style="border-color:${bab.label.includes('BEST')?'var(--green)':'var(--purple)'}">
-        <div class="bab-num" style="color:${bab.label.includes('BEST')?'var(--green)':'var(--purple)'}">${bab.label}</div>
-        <div style="font-size:10px;color:var(--dim);margin-bottom:4px">${bab.sublabel}</div>
-        ${bab.context?`<div style="font-size:10px;color:var(--orange);margin-bottom:8px;padding:4px 8px;background:#1a1000;border-radius:4px">⚡ ${bab.context}</div>`:''}
-        <div class="bab-legs" id="bablegs_${babIdx}">`;
-      babText+=`${bab.label}\n`;
-      bab.legs.forEach((leg,legIdx)=>{
-        const lc=leg.conf==='HIGH'?'conf-hi':leg.conf==='MED'?'conf-md':'conf-lo';
-        const score=HIERARCHY_SCORE[leg.type]||1.0;
-        const playerNameGuess=(leg.player||leg.market.split(' ').slice(0,2).join(' '));
-        const lineupBadge=lineupStatusBadge(playerNameGuess);
-        const notInXI=lineupConfirmed.length&&lineupBadge.includes('NOT IN XI');
-        const legData=JSON.stringify({type:leg.type,player:leg.player||playerNameGuess}).replace(/"/g,'&quot;');
-        html+=`<div class="bab-leg" id="leg_${babIdx}_${legIdx}" style="${notInXI?'opacity:0.4;background:rgba(239,68,68,0.08);border-radius:4px;padding:4px;':''}">
-          <div style="flex:1;min-width:0">
-            <div class="leg-market">${leg.market}${lineupBadge}</div>
-            <div class="leg-player">${leg.notes}</div>
-          </div>
-          <div class="bab-leg-right">
-            <span class="leg-conf ${lc}">${leg.conf}</span>
-            <span style="font-size:9px;color:var(--dim)">x${score.toFixed(2)}</span>
-            <button onclick="swapLeg(${babIdx},${legIdx},'${leg.type}','${leg.player||playerNameGuess}')" style="font-size:10px;padding:3px 8px;background:#2a1200;color:#ff9900;border:1px solid #5a3000;border-radius:5px;cursor:pointer;white-space:nowrap;width:100%;margin-top:2px">🔄 Swap</button>
-          </div>
-        </div>`;
-        babText+=`• ${leg.market} — ${leg.conf} (x${score.toFixed(2)})${notInXI?' ⚠️ NOT IN XI':''}\n`;
-      });
-      html+=`</div>`;
-
-      // EV GATE — enter Sky Bet combined odds to confirm
-      const baseProbs={shots_created:0.40,tackles:0.43,fouled:0.55,sot:0.52,foul_involvement:0.50,foul:0.65,shots:0.48,card:0.16,assists:0.35,goals:0.30,foul_involvement_h1:0.55,sot_h1:0.45};
-      const combinedProb=bab.legs.reduce((acc,l)=>acc*(baseProbs[l.type]||0.45),1);
-      const minOdds=(1/combinedProb).toFixed(2);
-      const evId='ev_'+bab.label.replace(/[^a-zA-Z0-9]/g,'');
-      html+=`<div style="background:#0a0a14;border:1px solid #1a1a2a;border-radius:6px;padding:8px;margin:8px 0">
-        <div style="font-size:10px;color:var(--gold);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">⚡ EV Gate — Enter Sky Bet Combined Odds</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="number" step="0.01" min="1.01" placeholder="e.g. 4.50" style="width:100px;font-size:13px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-weight:700" oninput="checkInlineEV(this,${combinedProb.toFixed(4)},'${evId}','${bab.label.includes('BEST')?'best':'long'}')">
-          <div style="font-size:11px;color:var(--dim)">Hit prob: <b style="color:var(--mid)">${(combinedProb*100).toFixed(1)}%</b> · Min EV: <b style="color:var(--gold)">${minOdds}x</b></div>
-          <div id="${evId}" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--s2);color:var(--dim)">Enter odds →</div>
-        </div>
-      </div>`;
-
-      if(bab.rules)html+=`<div class="bab-rules"><b>Rules:</b> ${bab.rules}</div>`;
-      if(bab.warning)html+=`<div class="bab-warning">⚠️ ${bab.warning}</div>`;
-      babText+=`\n`;
-      html+=`</div>`;
-    });
-    html+=`<div style="font-size:11px;color:var(--dim);margin:8px 12px">⚡ Sky Bet booster → apply to Best BAB · Both BABs £2.50 · EV gate: 3.0+ Best BAB / 6.0+ Longshot</div>`;
-    html+=`<div style="display:flex;gap:8px;margin:0 0 10px">
-      <button class="copy-btn" style="flex:1" onclick="copyText(${JSON.stringify(babText)})">📋 Copy BABs for Claude</button>
-      <button class="copy-btn" style="flex:1;border-color:var(--gold);color:var(--gold)" onclick="copyClaudeSummary()">⚡ Copy Full Session for Claude</button>
-    </div>`;
-  }
+  html+=`<div class="sec-title" style="margin:12px 0 8px">🎯 Shortlist Odds Check</div>`;
+  html+=renderShortlistOddsCheckHTML(allCandidates);
+  html+=`<div id="prematchBabResults"></div>`;
 
   // Lineup if available — now cross-references assets
   if(lineups&&lineups.length){
@@ -2554,7 +2855,7 @@ function renderPreMatchBABs(fix,lineups,h2h){
     lineups.forEach(l=>{
       html+=`<div class="debrief-section"><h4>${l.team.name} (${l.formation})</h4>`;
       l.startXI.forEach(p=>{
-        const asset=KNOWN_ASSETS[p.player.name];
+        const asset=lookupAsset(p.player.name);
         const susp=suspendedPlayers.find(s=>s.name===p.player.name);
         html+=`<div class="debrief-item">${susp?'🟥 ':''}${p.player.number}. ${p.player.name} — ${p.player.pos}${asset?` ✅ [${asset.markets.join(',')}]`:''}${susp?' — SUSPENDED?':''}</div>`;
       });
@@ -2564,6 +2865,170 @@ function renderPreMatchBABs(fix,lineups,h2h){
   }
 
   document.getElementById('prematchContent').innerHTML=html;
+}
+
+// ─── v20.9: SHORTLIST ODDS CHECK ─────────────────────────────────
+// Rules engine generates the shortlist first (odds-blind). This panel lets odds
+// filter which already-qualified legs survive into the final BAB — odds never
+// influence which legs get shortlisted in the first place.
+function renderShortlistOddsCheckHTML(candidates){
+  if(!candidates.length){
+    return `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Insufficient database data</div><div class="empty-text">Pull more post-match stats to build player form data for BAB generation</div></div>`;
+  }
+  let html=`<div class="debrief-card">
+    <div class="debrief-title">🎯 Shortlist Odds Check</div>
+    <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Rules-qualified shortlist below. Enter Sky Bet odds per leg — legs under the dead-leg floor are flagged dead and excluded when you build the BABs. Swap still works off the full pool regardless.</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:11px;color:var(--dim)">Dead leg floor:</span>
+      <input type="number" step="0.01" min="1.01" id="shortlistFloor" value="1.20" style="width:80px;font-size:13px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-weight:700" oninput="recheckAllShortlistLegs()">
+    </div>
+    <div class="bab-legs" id="shortlistLegs">`;
+  candidates.forEach((c,idx)=>{
+    const lc=c.conf==='HIGH'?'conf-hi':c.conf==='MED'?'conf-md':'conf-lo';
+    const score=HIERARCHY_SCORE[c.type]||1.0;
+    html+=`<div class="bab-leg" id="shortlist_leg_${idx}">
+      <div style="flex:1;min-width:0">
+        <div class="leg-market">${c.market}</div>
+        <div class="leg-player">${c.notes}</div>
+      </div>
+      <div class="bab-leg-right">
+        <span class="leg-conf ${lc}">${c.conf}</span>
+        <span style="font-size:9px;color:var(--dim)">x${score.toFixed(2)}</span>
+        <input type="number" step="0.01" min="1.01" placeholder="Odds" id="shortlistOdds_${idx}" style="width:70px;font-size:12px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-weight:700;margin-top:2px" oninput="checkShortlistLeg(${idx})">
+        <span id="shortlistFlag_${idx}" style="font-size:9px;color:var(--dim);margin-top:2px">—</span>
+      </div>
+    </div>`;
+  });
+  html+=`</div>
+    <button class="copy-btn" style="width:100%;margin-top:10px;border-color:var(--green);color:var(--green)" onclick="buildBABsFromShortlist()">⚡ Build BABs from Shortlist</button>
+  </div>`;
+  return html;
+}
+
+function checkShortlistLeg(idx){
+  const oddsInput=document.getElementById(`shortlistOdds_${idx}`);
+  const flagEl=document.getElementById(`shortlistFlag_${idx}`);
+  const legDiv=document.getElementById(`shortlist_leg_${idx}`);
+  if(!oddsInput||!flagEl||!legDiv)return;
+  const floorInput=document.getElementById('shortlistFloor');
+  const floor=parseFloat(floorInput?.value)||1.20;
+  const odds=parseFloat(oddsInput.value);
+  if(!window._shortlistDeadSet)window._shortlistDeadSet=new Set();
+  if(!odds||odds<1.01){
+    flagEl.textContent='—';flagEl.style.color='var(--dim)';
+    legDiv.style.cssText='';
+    window._shortlistDeadSet.delete(idx);
+    return;
+  }
+  if(odds<floor){
+    flagEl.textContent='💀 DEAD';flagEl.style.color='var(--red)';
+    legDiv.style.cssText='opacity:0.4;background:rgba(239,68,68,0.08);border-radius:4px;padding:4px;';
+    window._shortlistDeadSet.add(idx);
+  } else {
+    flagEl.textContent='✅ LIVE';flagEl.style.color='var(--green)';
+    legDiv.style.cssText='';
+    window._shortlistDeadSet.delete(idx);
+  }
+}
+
+function recheckAllShortlistLegs(){
+  const candidates=window._babCandidates||[];
+  candidates.forEach((c,idx)=>checkShortlistLeg(idx));
+}
+
+function buildBABsFromShortlist(){
+  const allCandidates=window._babCandidates||[];
+  const deadSet=window._shortlistDeadSet||new Set();
+  const survivors=allCandidates.filter((c,idx)=>!deadSet.has(idx));
+  const fix=window._babFix,refData=window._babRefData,ref=window._babRef||'TBC';
+  const target=document.getElementById('prematchBabResults');
+  if(!target)return;
+  if(!survivors.length){
+    target.innerHTML=`<div class="empty"><div class="empty-icon">💀</div><div class="empty-title">No legs survived the odds check</div><div class="empty-text">Every shortlisted leg is under the dead-leg floor. Raise the floor or check Sky Bet for better prices.</div></div>`;
+    return;
+  }
+  const babs=buildTwoBABs(survivors,fix,refData);
+  setTimeout(()=>updateSuperSubPanel(babs),100);
+  target.innerHTML=renderBabCardsHTML(babs,fix,refData,ref);
+}
+
+function renderBabCardsHTML(babs,fix,refData,ref){
+  let html=`<div class="sec-title" style="margin:12px 0 8px">⚡ Suggested BABs</div>`;
+  if(!babs.length){
+    html+=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Insufficient surviving candidates</div><div class="empty-text">Too many legs were filtered out by the odds check to build a BAB. Raise the dead-leg floor or swap legs back in.</div></div>`;
+    return html;
+  }
+  const modeLabel=BAB_MODE==='double'?'Doubles':BAB_MODE==='single'?'Singles':'Trebles';
+  let babText=`⚡ Pre-Match BABs (${modeLabel}) — ${fix.teams.home.name} vs ${fix.teams.away.name}\nRef: ${ref} (${refData.yc_per_game} YC/game — ${refData.level})\n\n`;
+  babs.forEach((bab,babIdx)=>{
+    const cardColor=bab.isSingle?'var(--gold)':bab.label.includes('BEST')?'var(--green)':'var(--purple)';
+    html+=`<div class="bab-card" id="babcard_${babIdx}" style="border-color:${cardColor}">
+      <div class="bab-num" style="color:${cardColor}">${bab.label}</div>
+      <div style="font-size:10px;color:var(--dim);margin-bottom:4px">${bab.sublabel}</div>
+      ${bab.context?`<div style="font-size:10px;color:var(--orange);margin-bottom:8px;padding:4px 8px;background:#1a1000;border-radius:4px">⚡ ${bab.context}</div>`:''}
+      <div class="bab-legs" id="bablegs_${babIdx}">`;
+    babText+=`${bab.label}\n`;
+    bab.legs.forEach((leg,legIdx)=>{
+      const lc=leg.conf==='HIGH'?'conf-hi':leg.conf==='MED'?'conf-md':'conf-lo';
+      const score=HIERARCHY_SCORE[leg.type]||1.0;
+      const playerNameGuess=(leg.player||leg.market.split(' ').slice(0,2).join(' '));
+      const lineupBadge=lineupStatusBadge(playerNameGuess);
+      const notInXI=lineupConfirmed.length&&lineupBadge.includes('NOT IN XI');
+      html+=`<div class="bab-leg" id="leg_${babIdx}_${legIdx}" style="${notInXI?'opacity:0.4;background:rgba(239,68,68,0.08);border-radius:4px;padding:4px;':''}">
+        <div style="flex:1;min-width:0">
+          <div class="leg-market">${leg.market}${lineupBadge}</div>
+          <div class="leg-player">${leg.notes}</div>
+        </div>
+        <div class="bab-leg-right">
+          <span class="leg-conf ${lc}">${leg.conf}</span>
+          <span style="font-size:9px;color:var(--dim)">x${score.toFixed(2)}</span>
+          ${!bab.isSingle?`<button onclick="swapLeg(${babIdx},${legIdx},'${leg.type}','${leg.player||playerNameGuess}')" style="font-size:10px;padding:3px 8px;background:#2a1200;color:#ff9900;border:1px solid #5a3000;border-radius:5px;cursor:pointer;white-space:nowrap;width:100%;margin-top:2px">🔄 Swap</button>`:''}
+        </div>
+      </div>`;
+      babText+=`• ${leg.market} — ${leg.conf} (x${score.toFixed(2)})${notInXI?' ⚠️ NOT IN XI':''}\n`;
+    });
+    html+=`</div>`;
+
+    if(bab.isSingle){
+      // Single mode: no EV gate, just show individual leg probability
+      const leg=bab.legs[0];
+      const baseProbs={shots_created:0.40,tackles:0.43,fouled:0.55,sot:0.52,foul_involvement:0.50,foul:0.65,shots:0.48,card:0.16,assists:0.35,goals:0.30,foul_involvement_h1:0.55,sot_h1:0.45};
+      const prob=baseProbs[leg.type]||0.45;
+      html+=`<div style="background:#0a0a14;border:1px solid #1a1a2a;border-radius:6px;padding:8px;margin:8px 0">
+        <div style="font-size:10px;color:var(--gold);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📊 Single Leg Tracking</div>
+        <div style="font-size:11px;color:var(--dim)">Est. hit prob: <b style="color:var(--mid)">${(prob*100).toFixed(0)}%</b> · Tier: <b style="color:var(--gold)">x${(HIERARCHY_SCORE[leg.type]||1).toFixed(2)}</b> (R-WC110) · No odds gate — log result for win-rate tracking</div>
+      </div>`;
+    } else {
+      // Doubles/Trebles: EV Gate
+      const baseProbs={shots_created:0.40,tackles:0.43,fouled:0.55,sot:0.52,foul_involvement:0.50,foul:0.65,shots:0.48,card:0.16,assists:0.35,goals:0.30,foul_involvement_h1:0.55,sot_h1:0.45};
+      const combinedProb=bab.legs.reduce((acc,l)=>acc*(baseProbs[l.type]||0.45),1);
+      const minOdds=(1/combinedProb).toFixed(2);
+      const gateOdds=bab.minOddsGate||3.0;
+      const evId='ev_'+bab.label.replace(/[^a-zA-Z0-9]/g,'');
+      const babType=bab.label.includes('BEST')?'best':'long';
+      html+=`<div style="background:#0a0a14;border:1px solid #1a1a2a;border-radius:6px;padding:8px;margin:8px 0">
+        <div style="font-size:10px;color:var(--gold);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">⚡ EV Gate — Enter Sky Bet Combined Odds (min ${gateOdds}x)</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="number" step="0.01" min="1.01" placeholder="e.g. ${gateOdds}" style="width:100px;font-size:13px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-weight:700" oninput="checkInlineEV(this,${combinedProb.toFixed(4)},'${evId}','${babType}',${gateOdds})">
+          <div style="font-size:11px;color:var(--dim)">Hit prob: <b style="color:var(--mid)">${(combinedProb*100).toFixed(1)}%</b> · Min EV: <b style="color:var(--gold)">${minOdds}x</b></div>
+          <div id="${evId}" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--s2);color:var(--dim)">Enter odds →</div>
+        </div>
+      </div>`;
+    }
+
+    if(bab.rules)html+=`<div class="bab-rules"><b>Rules:</b> ${bab.rules}</div>`;
+    if(bab.warning)html+=`<div class="bab-warning">⚠️ ${bab.warning}</div>`;
+    babText+=`\n`;
+    html+=`</div>`;
+  });
+  const modeFooter=BAB_MODE==='single'?'Single pick · Log result for win-rate tracking · No odds gate':BAB_MODE==='double'?'⚡ Sky Bet booster → apply to Best Double · Both £2.50 · EV gate: 2.5+ Best / 5.0+ Longshot':'⚡ Sky Bet booster → apply to Best BAB · Both BABs £2.50 · EV gate: 3.0+ Best BAB / 6.0+ Longshot';
+  html+=`<div style="font-size:11px;color:var(--dim);margin:8px 12px">${modeFooter}</div>`;
+  const _ck2='_cb_'+Date.now();_copyStore[_ck2]=babText;
+  html+=`<div style="display:flex;gap:8px;margin:0 0 10px">
+    <button class="copy-btn" style="flex:1" onclick="copyStored('${_ck2}',this)">📋 Copy BABs for Claude</button>
+    <button class="copy-btn" style="flex:1;border-color:var(--gold);color:var(--gold)" onclick="copyClaudeSummary()">⚡ Copy Full Session for Claude</button>
+  </div>`;
+  return html;
 }
 
 function getPlayerFormForTeam(teamName){
@@ -2590,7 +3055,7 @@ function generatePreMatchCandidates(players,refData,suspendedPlayers=[]){
     if(suspNames.has(p.name))return;
     // R-WC113: Strip players from the dead rubber/rotating team
     if(stripTeam&&p.team&&p.team.toLowerCase().includes(stripTeam)){return;}
-    const asset=KNOWN_ASSETS[p.name];
+    const asset=lookupAsset(p.name);
     const avgKP=p.matches.reduce((a,m)=>a+(m.keyPasses||0),0)/p.matches.length;
     const avgShots=p.matches.reduce((a,m)=>a+(m.shots||0),0)/p.matches.length;
     const avgTackles=p.matches.reduce((a,m)=>a+(m.tackles||0),0)/p.matches.length;
@@ -2669,6 +3134,138 @@ function sortDB(sort){
   renderDB();
 }
 
+// ─── REFEREE DB UI ───────────────────────────────────────
+const REF_LEVEL_COLOR={HIGH:'var(--red)',MOD_HIGH:'var(--orange)',STANDARD:'var(--mid)',WC_PASSIVE:'var(--purple)',WC_PASSIVE_EXTREME:'#ff44ff',LOW:'var(--dim)',UNKNOWN:'var(--dim)'};
+
+function renderRefDB(){
+  const search=(document.getElementById('refSearch')?.value||'').toLowerCase();
+  const filterLevel=document.getElementById('refFilterLevel')?.value||'';
+  const container=document.getElementById('refDBTable');
+  if(!container)return;
+
+  let entries=Object.values(refDB);
+  if(search)entries=entries.filter(r=>(r.name||'').toLowerCase().includes(search)||(r.country||'').toLowerCase().includes(search));
+  if(filterLevel)entries=entries.filter(r=>r.level===filterLevel);
+  entries.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+
+  if(!entries.length){
+    container.innerHTML=`<div class="empty"><div class="empty-icon">🟨</div><div class="empty-title">No referees found</div><div class="empty-text">Add one above or re-seed from KNOWN_REFS</div></div>`;
+    return;
+  }
+
+  let html='';
+  entries.forEach(r=>{
+    const lc=REF_LEVEL_COLOR[r.level]||'var(--dim)';
+    const wcYCDisplay=r.wcYC!=null?r.wcYC.toFixed(2):'—';
+    const wcFoulsDisplay=r.wcFouls!=null?r.wcFouls.toFixed(1):'—';
+    const careerYCDisplay=r.careerYC!=null?r.careerYC.toFixed(2):'—';
+    const careerFoulsDisplay=r.careerFouls!=null?r.careerFouls.toFixed(1):'—';
+    const encodedName=r.name.replace(/'/g,"\\'");
+    html+=`<div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+        <div>
+          <div style="font-weight:700;font-size:13px;color:var(--text)">${r.name}${r.country?` <span style="font-size:10px;color:var(--dim);font-weight:400">(${r.country})</span>`:''}</div>
+          <div style="display:inline-block;margin-top:3px;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;background:${lc}22;color:${lc};border:1px solid ${lc}44">${r.level}</div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0">
+          <button onclick="editRefEntry('${encodedName}')" style="font-size:11px;padding:4px 10px;background:var(--s2);color:var(--gold);border:1px solid var(--border);border-radius:6px;cursor:pointer">✏️ Edit</button>
+          <button onclick="if(confirm('Delete ${encodedName}?')){deleteRefEntry('${encodedName}');renderRefDB();}" style="font-size:11px;padding:4px 8px;background:#2a0000;color:var(--red);border:1px solid #5a0000;border-radius:6px;cursor:pointer">🗑</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+        <div style="background:var(--bg);border-radius:6px;padding:5px 8px;text-align:center">
+          <div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px">Career YC/g</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text)">${careerYCDisplay}</div>
+        </div>
+        <div style="background:var(--bg);border-radius:6px;padding:5px 8px;text-align:center">
+          <div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px">Career fouls/g</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text)">${careerFoulsDisplay}</div>
+        </div>
+        <div style="background:var(--bg);border-radius:6px;padding:5px 8px;text-align:center">
+          <div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px">WC YC/g</div>
+          <div style="font-size:14px;font-weight:700;color:${r.wcYC!=null?lc:'var(--dim)'}">${wcYCDisplay}</div>
+        </div>
+        <div style="background:var(--bg);border-radius:6px;padding:5px 8px;text-align:center">
+          <div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px">WC fouls/g</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text)">${wcFoulsDisplay}</div>
+        </div>
+      </div>
+      ${r.wcGames?`<div style="font-size:10px;color:var(--dim);margin-bottom:4px">WC games: ${r.wcGames}</div>`:''}
+      ${r.note?`<div style="font-size:11px;color:var(--dim);border-top:1px solid var(--border);padding-top:6px;margin-top:2px">${r.note}</div>`:''}
+    </div>`;
+  });
+  container.innerHTML=html;
+}
+
+function submitRefForm(){
+  const name=norm(document.getElementById('refForm-name')?.value||'');
+  if(!name){
+    document.getElementById('refFormStatus').textContent='⚠️ Name is required';
+    document.getElementById('refFormStatus').style.color='var(--orange)';
+    return;
+  }
+  const entry={
+    name,
+    country:(document.getElementById('refForm-country')?.value||'').trim(),
+    careerYC:parseFloat(document.getElementById('refForm-careerYC')?.value)||null,
+    careerFouls:parseFloat(document.getElementById('refForm-careerFouls')?.value)||null,
+    wcYC:parseFloat(document.getElementById('refForm-wcYC')?.value)||null,
+    wcFouls:parseFloat(document.getElementById('refForm-wcFouls')?.value)||null,
+    wcGames:parseInt(document.getElementById('refForm-wcGames')?.value)||0,
+    level:document.getElementById('refForm-level')?.value||'UNKNOWN',
+    note:(document.getElementById('refForm-note')?.value||'').trim()
+  };
+  saveRefEntry(entry);
+  const st=document.getElementById('refFormStatus');
+  st.textContent=`✅ Saved: ${name}`;
+  st.style.color='var(--green)';
+  setTimeout(()=>{st.textContent='';},3000);
+  renderRefDB();
+}
+
+function clearRefForm(){
+  ['name','country','careerYC','careerFouls','wcYC','wcFouls','wcGames','note'].forEach(f=>{
+    const el=document.getElementById('refForm-'+f);
+    if(el)el.value='';
+  });
+  const lvl=document.getElementById('refForm-level');
+  if(lvl)lvl.value='STANDARD';
+  const st=document.getElementById('refFormStatus');
+  if(st)st.textContent='';
+}
+
+function editRefEntry(name){
+  const r=refDB[name];
+  if(!r)return;
+  const set=(id,val)=>{const el=document.getElementById('refForm-'+id);if(el)el.value=val??'';};
+  set('name',r.name);
+  set('country',r.country||'');
+  set('careerYC',r.careerYC??'');
+  set('careerFouls',r.careerFouls??'');
+  set('wcYC',r.wcYC??'');
+  set('wcFouls',r.wcFouls??'');
+  set('wcGames',r.wcGames||'');
+  set('note',r.note||'');
+  const lvl=document.getElementById('refForm-level');
+  if(lvl)lvl.value=r.level||'UNKNOWN';
+  // Scroll to form
+  document.getElementById('refForm-name')?.scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('refForm-name')?.focus();
+  const st=document.getElementById('refFormStatus');
+  if(st){st.textContent=`Editing: ${r.name} — save to update`;st.style.color='var(--gold)';}
+}
+
+function prefillRefForm(apiName){
+  clearRefForm();
+  const bare=apiName.includes(',')?apiName.split(',')[0].trim():apiName;
+  const country=apiName.includes(',')?apiName.split(',').slice(1).join(',').trim():'';
+  const set=(id,val)=>{const el=document.getElementById('refForm-'+id);if(el)el.value=val;};
+  set('name',bare);
+  set('country',country);
+  document.getElementById('refForm-name')?.scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('refForm-name')?.focus();
+}
+
 function renderDB(){
   const searchEl=document.getElementById('dbSearch');
   const query=(searchEl?searchEl.value.toLowerCase():'');
@@ -2700,7 +3297,7 @@ function renderDB(){
   });
 
   document.getElementById('dbContent').innerHTML=ranked.map(p=>{
-    const asset=KNOWN_ASSETS[p.name];
+    const asset=lookupAsset(p.name);
     const isAsset=asset||p.avgFouls>=2||p.totalCards>0;
     return `<div class="db-player ${isAsset?'asset':''}">
       <div style="display:flex;align-items:center;justify-content:space-between">
@@ -2875,7 +3472,7 @@ function copyClaudeSummary(){
     const shots=(p.matches.reduce((a,m)=>a+(m.shots||0),0)/p.matches.length).toFixed(1);
     const yc=p.totalCards||0;
     const g=p.matches.length;
-    const asset=KNOWN_ASSETS[p.name];
+    const asset=lookupAsset(p.name);
     const assetTag=asset&&asset.markets.length?` ✅[${asset.markets.join(',')}]`:'';
     return `  ${p.name} — fc:${fc} fd:${fd} sot:${sot} kp:${kp} tack:${tack} shots:${shots} yc:${yc} (${g}g)${assetTag}`;
   }
@@ -2900,7 +3497,7 @@ function copyClaudeSummary(){
   // Known assets from KNOWN_ASSETS for these teams
   const knownAssetLines=[];
   [...homeLine,...awayLine].forEach(p=>{
-    const asset=KNOWN_ASSETS[p.name];
+    const asset=lookupAsset(p.name);
     if(asset&&asset.note){
       knownAssetLines.push(`  ${p.name}: ${asset.note}`);
     }
@@ -2978,16 +3575,31 @@ function copyClaudeSummary(){
   }).catch(()=>alert(summary));
 }
 
+const _copyStore={};
 function copyText(text){
+  const key='_cb_'+Date.now();
+  _copyStore[key]=text;
+  copyStored(key,event.target);
+}
+function copyStored(key,btn){
+  const text=_copyStore[key];
+  if(!text)return;
   navigator.clipboard.writeText(text).then(()=>{
-    const btn=event.target;btn.textContent='✅ Copied!';setTimeout(()=>{btn.textContent='📋 Copy for Claude'},2000);
-  }).catch(()=>alert(text));
+    if(btn){btn.textContent='✅ Copied!';setTimeout(()=>{btn.textContent='📋 Copy for Claude'},2000);}
+  }).catch(()=>{
+    const ta=document.createElement('textarea');
+    ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');if(btn){btn.textContent='✅ Copied!';setTimeout(()=>{btn.textContent='📋 Copy for Claude'},2000);}}
+    catch(e){alert(text);}
+    document.body.removeChild(ta);
+  });
 }
 
 // ─── v20: LINEUP GATE ────────────────────────────────────
 function confirmLineup(){
   const raw=document.getElementById('lineupGate').value;
-  lineupConfirmed=raw.split(/[\n,]+/).map(s=>s.trim().toLowerCase()).filter(s=>s.length>2);
+  lineupConfirmed=raw.split(/[\n,]+/).map(s=>norm(s).toLowerCase()).filter(s=>s.length>2);
   updateLineupBadge();
 }
 function checkLineupGate(){
@@ -3009,7 +3621,7 @@ function updateLineupBadge(){
 }
 function checkLegAgainstLineup(playerName){
   if(!lineupConfirmed.length)return null; // no lineup set — no flag
-  const nameLower=playerName.toLowerCase();
+  const nameLower=norm(playerName).toLowerCase();
   // Check if any confirmed starter name appears in the player name string
   const inLineup=lineupConfirmed.some(n=>nameLower.includes(n)||n.includes(nameLower.split(' ').pop()));
   return inLineup;
@@ -3049,35 +3661,94 @@ function updateSuperSubPanel(babs){
 }
 
 // ─── v20: SESSION LOGGER ─────────────────────────────────
+function _blankLeg(){ return {player:'',marketType:'',threshold:'',odds:'',result:null}; }
+function _babLegCount(bab){ return bab.betType==='single'?1:bab.betType==='double'?2:3; }
+
+// UI state — not persisted
+const _expandedSessions=new Set();  // session IDs currently expanded
+let _addingBetFor=null;             // session ID currently showing the + Add Bet picker
+
 function addNewSession(){
   const id='sess_'+Date.now();
-  sessionLog.push({
-    id,label:'',game:'',date:new Date().toISOString().slice(0,10),
-    babs:[
-      {type:'BEST BAB',stake:2.50,odds:'',result:null,legs:[{market:'',result:null,marketType:''},{market:'',result:null,marketType:''},{market:'',result:null,marketType:''}]},
-      {type:'LONGSHOT BAB',stake:2.50,odds:'',result:null,legs:[{market:'',result:null,marketType:''},{market:'',result:null,marketType:''},{market:'',result:null,marketType:''}]}
-    ],
-    notes:''
-  });
+  sessionLog.push({id,label:'',date:new Date().toISOString().slice(0,10),babs:[],notes:''});
+  _expandedSessions.add(id); // new sessions start expanded
   saveSessionLog();
   renderSessionPage();
+}
+
+function addBetToSession(id, betType){
+  const s=sessionLog.find(s=>s.id===id);
+  if(!s)return;
+  const legCount=betType==='single'?1:betType==='double'?2:3;
+  s.babs.push({betType,stake:2.50,odds:'',result:null,legs:Array.from({length:3},_blankLeg)});
+  _addingBetFor=null;
+  saveSessionLog();
+  renderSessionPage();
+}
+
+function removeBet(id, bi){
+  const s=sessionLog.find(s=>s.id===id);
+  if(!s)return;
+  s.babs.splice(bi,1);
+  saveSessionLog();
+  renderSessionPage();
+}
+
+function toggleSessionExpand(id){
+  if(_expandedSessions.has(id))_expandedSessions.delete(id);
+  else _expandedSessions.add(id);
+  renderSessionPage();
+}
+
+function showAddBetPicker(id){
+  _addingBetFor=(_addingBetFor===id)?null:id;
+  renderSessionPage();
+}
+
+function _sessionPL(s){
+  return s.babs.reduce((acc,bab)=>{
+    if(bab.result==='win')return acc+(bab.pl||0);
+    if(bab.result==='loss')return acc-(parseFloat(bab.stake)||2.50);
+    return acc;
+  },0);
+}
+
+function _sessionResultSummary(s){
+  if(!s.babs.length)return {text:'No bets',color:'var(--dim)'};
+  const settled=s.babs.filter(b=>b.result&&b.result!=='void');
+  if(!settled.length)return {text:'Pending',color:'var(--dim)'};
+  const wins=settled.filter(b=>b.result==='win').length;
+  const losses=settled.filter(b=>b.result==='loss').length;
+  const pl=_sessionPL(s);
+  const plStr=(pl>=0?'+':'')+'£'+Math.abs(pl).toFixed(2);
+  return {
+    text:`${wins}W ${losses}L · ${plStr}`,
+    color:pl>0?'var(--green)':pl<0?'var(--red)':'var(--dim)'
+  };
 }
 
 function updateSession(id,field,value){
   const s=sessionLog.find(s=>s.id===id);
   if(!s)return;
   if(field.startsWith('bab_')){
-    const[,bi,f]=field.split('_');
-    s.babs[parseInt(bi)][f]=value;
-    // Auto-calculate P&L
-    if(s.babs[parseInt(bi)].result!==null&&s.babs[parseInt(bi)].odds){
-      const odds=parseFloat(s.babs[parseInt(bi)].odds)||0;
-      const stake=parseFloat(s.babs[parseInt(bi)].stake)||2.50;
-      s.babs[parseInt(bi)].pl=s.babs[parseInt(bi)].result==='win'?parseFloat(((odds*stake)-stake).toFixed(2)):-stake;
+    const parts=field.split('_');
+    const bi=parseInt(parts[1]);
+    const f=parts.slice(2).join('_');
+    s.babs[bi][f]=value;
+    if(f==='betType'){
+      while(s.babs[bi].legs.length<3)s.babs[bi].legs.push(_blankLeg());
+      saveSessionLog();renderSessionPage();return;
+    }
+    if(s.babs[bi].result&&s.babs[bi].odds){
+      const odds=parseFloat(s.babs[bi].odds)||0;
+      const stake=parseFloat(s.babs[bi].stake)||2.50;
+      s.babs[bi].pl=s.babs[bi].result==='win'?parseFloat(((odds*stake)-stake).toFixed(2)):-stake;
     }
   } else if(field.startsWith('leg_')){
-    const[,bi,li,f]=field.split('_');
-    s.babs[parseInt(bi)].legs[parseInt(li)][f]=value;
+    const parts=field.split('_');
+    const bi=parseInt(parts[1]),li=parseInt(parts[2]),f=parts.slice(3).join('_');
+    if(!s.babs[bi].legs[li])s.babs[bi].legs[li]=_blankLeg();
+    s.babs[bi].legs[li][f]=value;
   } else {
     s[field]=value;
   }
@@ -3087,6 +3758,7 @@ function updateSession(id,field,value){
 
 function deleteSession(id){
   if(!confirm('Delete this session?'))return;
+  _expandedSessions.delete(id);
   sessionLog=sessionLog.filter(s=>s.id!==id);
   saveSessionLog();
   renderSessionPage();
@@ -3100,93 +3772,212 @@ function renderSessionPage(){
     container.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No sessions logged</div><div class="empty-text">Tap + New Session to start tracking</div></div>`;
     return;
   }
-  const marketTypes=['foul','fouled','sot','tackles','shots_created','shots','card','assists','goals','foul_involvement','team_corners','total_corners','total_cards','team_fouls','team_sot'];
-  container.innerHTML=[...sessionLog].reverse().map(s=>`
-    <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px;margin:0 0 10px">
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-        <input style="flex:2;min-width:120px;font-size:12px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)" value="${s.label||''}" placeholder="Session label (e.g. BIH vs QAT)" onchange="updateSession('${s.id}','label',this.value)">
-        <input type="date" style="font-size:12px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)" value="${s.date||''}" onchange="updateSession('${s.id}','date',this.value)">
-        <button style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:11px" onclick="deleteSession('${s.id}')">✕</button>
+
+  const MKT=['shots_created','tackles','fouled','sot','foul','shots','card','assists','goals','foul_involvement','foul_involvement_h1','sot_h1','team_corners','total_corners','total_cards','team_fouls','team_sot'];
+  const THR=['1+','2+','3+','4+','5+','1','2','3'];
+  const iSt='font-size:11px;padding:4px 7px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)';
+  const sSt=iSt+';cursor:pointer';
+
+  function babTypeLabel(bt){ return bt==='single'?'Single':bt==='double'?'Double':'Treble'; }
+  function babColor(bt){ return bt==='single'?'var(--gold)':bt==='double'?'var(--green)':'var(--purple)'; }
+
+  container.innerHTML=[...sessionLog].reverse().map(s=>{
+    // back-compat migration
+    s.babs.forEach(bab=>{
+      if(!bab.betType)bab.betType='treble';
+      bab.legs=bab.legs||[];
+      while(bab.legs.length<3)bab.legs.push(_blankLeg());
+      bab.legs.forEach(leg=>{
+        if(leg.market&&!leg.player){leg.player=leg.market;delete leg.market;}
+        if(!leg.threshold)leg.threshold='';
+        if(!leg.odds)leg.odds='';
+      });
+    });
+
+    const expanded=_expandedSessions.has(s.id);
+    const res=_sessionResultSummary(s);
+    const betCount=s.babs.length;
+    const chevron=expanded?'▲':'▽';
+
+    // ── COLLAPSED HEADER ──
+    const header=`<div onclick="toggleSessionExpand('${s.id}')" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:2px 0">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.label||'Untitled session'}</div>
+        <div style="font-size:10px;color:var(--dim);margin-top:2px">${s.date||''}${betCount?` · ${betCount} bet${betCount>1?'s':''}`:' · No bets yet'}</div>
       </div>
-      ${s.babs.map((bab,bi)=>`
-        <div style="background:var(--s2);border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${bi===0?'var(--green)':'var(--purple)'}">
-          <div style="font-size:11px;font-weight:700;color:${bi===0?'var(--green)':'var(--purple)'};margin-bottom:8px">${bab.type}</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-            <input type="number" step="0.01" style="width:70px;font-size:12px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)" value="${bab.odds||''}" placeholder="Odds" onchange="updateSession('${s.id}','bab_${bi}_odds',this.value)">
-            <input type="number" step="0.50" style="width:60px;font-size:12px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)" value="${bab.stake||2.50}" placeholder="£" onchange="updateSession('${s.id}','bab_${bi}_stake',this.value)">
-            <select style="font-size:12px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)" onchange="updateSession('${s.id}','bab_${bi}_result',this.value)">
-              <option value="">Result?</option>
-              <option value="win" ${bab.result==='win'?'selected':''}>✅ Win</option>
-              <option value="loss" ${bab.result==='loss'?'selected':''}>❌ Loss</option>
-              <option value="void" ${bab.result==='void'?'selected':''}>🔄 Void</option>
-            </select>
-            ${bab.pl!==undefined?`<span style="font-size:12px;font-weight:700;color:${bab.pl>=0?'var(--green)':'var(--red)'};padding:5px 8px">${bab.pl>=0?'+':''}£${Math.abs(bab.pl).toFixed(2)}</span>`:''}
+      <div style="font-size:12px;font-weight:700;color:${res.color};white-space:nowrap;flex-shrink:0">${res.text}</div>
+      <div style="font-size:14px;color:var(--dim);flex-shrink:0;line-height:1">${chevron}</div>
+    </div>`;
+
+    if(!expanded){
+      return `<div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:0 0 8px">${header}</div>`;
+    }
+
+    // ── EXPANDED BODY ──
+    const babsHtml=s.babs.map((bab,bi)=>{
+      const lc=_babLegCount(bab);
+      const bt=bab.betType||'treble';
+      const col=babColor(bt);
+      const pl=bab.pl;
+      return `<div style="background:var(--s2);border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${col}">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+          <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            ${['single','double','treble'].map(t=>`<button onclick="updateSession('${s.id}','bab_${bi}_betType','${t}')" style="padding:3px 9px;font-size:10px;font-weight:700;border:none;cursor:pointer;background:${bt===t?col:'var(--bg)'};color:${bt===t?'#000':'var(--dim)'}">${babTypeLabel(t)}</button>`).join('')}
           </div>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            ${bab.legs.map((leg,li)=>`
-              <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
-                <input style="flex:2;min-width:100px;font-size:11px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)" value="${leg.market||''}" placeholder="Leg ${li+1} (e.g. Katić 2+ tackles)" onchange="updateSession('${s.id}','leg_${bi}_${li}_market',this.value)">
-                <select style="font-size:10px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)" onchange="updateSession('${s.id}','leg_${bi}_${li}_marketType',this.value)">
-                  <option value="">Type?</option>
-                  ${marketTypes.map(t=>`<option value="${t}" ${leg.marketType===t?'selected':''}>${t}</option>`).join('')}
-                </select>
-                <select style="font-size:10px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text)" onchange="updateSession('${s.id}','leg_${bi}_${li}_result',this.value)">
-                  <option value="">?</option>
-                  <option value="win" ${leg.result==='win'?'selected':''}>✅</option>
-                  <option value="loss" ${leg.result==='loss'?'selected':''}>❌</option>
-                  <option value="super_sub" ${leg.result==='super_sub'?'selected':''}>🔄 SS</option>
-                </select>
-              </div>`).join('')}
+          <div style="flex:1"></div>
+          <button onclick="removeBet('${s.id}',${bi})" style="font-size:10px;padding:2px 8px;background:#2a0000;color:var(--red);border:1px solid #5a0000;border-radius:5px;cursor:pointer">✕ Remove</button>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+          <span style="font-size:10px;color:var(--dim)">Odds:</span>
+          <input type="number" step="0.01" style="width:65px;${iSt}" value="${bab.odds||''}" placeholder="e.g. 4.50" onchange="updateSession('${s.id}','bab_${bi}_odds',this.value)">
+          <span style="font-size:10px;color:var(--dim)">£</span>
+          <input type="number" step="0.50" style="width:52px;${iSt}" value="${bab.stake||2.50}" onchange="updateSession('${s.id}','bab_${bi}_stake',this.value)">
+          <select style="${sSt}" onchange="updateSession('${s.id}','bab_${bi}_result',this.value)">
+            <option value="">Result?</option>
+            <option value="win" ${bab.result==='win'?'selected':''}>✅ Win</option>
+            <option value="loss" ${bab.result==='loss'?'selected':''}>❌ Loss</option>
+            <option value="void" ${bab.result==='void'?'selected':''}>🔄 Void</option>
+          </select>
+          ${pl!==undefined?`<span style="font-size:12px;font-weight:700;color:${pl>=0?'var(--green)':'var(--red)'};padding:2px 6px">${pl>=0?'+':''}£${Math.abs(pl).toFixed(2)}</span>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:grid;grid-template-columns:1fr 95px 38px 48px 34px;gap:3px;font-size:9px;color:var(--dim);padding:0 1px">
+            <span>Player</span><span>Market</span><span>Thr</span><span>Odds</span><span>✓</span>
           </div>
-        </div>`).join('')}
-      <textarea style="width:100%;font-size:11px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--dim);resize:vertical;min-height:36px" placeholder="Notes (ref classification, context flags, key lessons...)" onchange="updateSession('${s.id}','notes',this.value)">${s.notes||''}</textarea>
-    </div>`).join('');
+          ${[...Array(lc).keys()].map(li=>{
+            const leg=bab.legs[li]||_blankLeg();
+            return `<div style="display:grid;grid-template-columns:1fr 95px 38px 48px 34px;gap:3px;align-items:center">
+              <input style="${iSt};width:100%" value="${(leg.player||'').replace(/"/g,'&quot;')}" placeholder="Player" onchange="updateSession('${s.id}','leg_${bi}_${li}_player',this.value)">
+              <select style="${sSt};width:100%" onchange="updateSession('${s.id}','leg_${bi}_${li}_marketType',this.value)">
+                <option value="">—</option>
+                ${MKT.map(t=>`<option value="${t}" ${leg.marketType===t?'selected':''}>${t}</option>`).join('')}
+              </select>
+              <select style="${sSt};width:100%" onchange="updateSession('${s.id}','leg_${bi}_${li}_threshold',this.value)">
+                <option value="">—</option>
+                ${THR.map(t=>`<option value="${t}" ${leg.threshold===t?'selected':''}>${t}</option>`).join('')}
+              </select>
+              <input type="number" step="0.01" style="${iSt};width:100%" value="${leg.odds||''}" placeholder="—" onchange="updateSession('${s.id}','leg_${bi}_${li}_odds',this.value)">
+              <select style="${sSt};width:100%" onchange="updateSession('${s.id}','leg_${bi}_${li}_result',this.value)">
+                <option value="">?</option>
+                <option value="win" ${leg.result==='win'?'selected':''}>✅</option>
+                <option value="loss" ${leg.result==='loss'?'selected':''}>❌</option>
+                <option value="void" ${leg.result==='void'?'selected':''}>🔄</option>
+                <option value="super_sub" ${leg.result==='super_sub'?'selected':''}>SS</option>
+              </select>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('');
+
+    // ── + ADD BET PICKER ──
+    const addPicker=_addingBetFor===s.id
+      ?`<div style="background:#0a1a00;border:1px solid #1a3f00;border-radius:8px;padding:10px;margin-bottom:8px">
+          <div style="font-size:11px;color:var(--green);font-weight:700;margin-bottom:8px">Select bet type:</div>
+          <div style="display:flex;gap:8px">
+            ${['single','double','treble'].map(bt=>`<button onclick="addBetToSession('${s.id}','${bt}')" style="flex:1;padding:8px 4px;font-size:12px;font-weight:700;background:${babColor(bt)}22;color:${babColor(bt)};border:1px solid ${babColor(bt)}44;border-radius:8px;cursor:pointer">${babTypeLabel(bt)}</button>`).join('')}
+          </div>
+          <button onclick="showAddBetPicker('${s.id}')" style="margin-top:8px;font-size:10px;color:var(--dim);background:none;border:none;cursor:pointer">Cancel</button>
+        </div>`
+      :``;
+
+    return `<div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:0 0 8px">
+      ${header}
+      <div style="border-top:1px solid var(--border);margin:10px 0"></div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+        <input style="flex:2;min-width:140px;${iSt}" value="${(s.label||'').replace(/"/g,'&quot;')}" placeholder="Match (e.g. Germany vs Paraguay)" onchange="updateSession('${s.id}','label',this.value)">
+        <input type="date" style="${iSt}" value="${s.date||''}" onchange="updateSession('${s.id}','date',this.value)">
+        <button onclick="deleteSession('${s.id}')" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:11px">✕ Delete</button>
+      </div>
+      ${addPicker}
+      ${babsHtml}
+      <button onclick="showAddBetPicker('${s.id}')" style="width:100%;padding:8px;font-size:12px;font-weight:700;background:var(--s2);color:var(--green);border:1px dashed #1a4a00;border-radius:8px;cursor:pointer;margin-bottom:8px">+ Add Bet</button>
+      <textarea style="width:100%;font-size:11px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--dim);resize:vertical;min-height:36px;font-family:inherit" placeholder="Notes (ref, context flags, key lessons...)" onchange="updateSession('${s.id}','notes',this.value)">${s.notes||''}</textarea>
+    </div>`;
+  }).join('');
 }
 
 function renderSessionSummary(){
-  // P&L summary
-  let totalPL=0,totalBabs=0,winBabs=0;
+  let totalPL=0;
+  // Per-format bet tracking
+  const betStats={single:{win:0,total:0},double:{win:0,total:0},treble:{win:0,total:0}};
   const marketStats={};
+
   sessionLog.forEach(s=>{
     s.babs.forEach(bab=>{
-      if(bab.result){
-        totalBabs++;
-        if(bab.result==='win'){winBabs++;totalPL+=bab.pl||0;}
-        else if(bab.result==='loss'){totalPL-=bab.stake||2.50;}
+      const bt=bab.betType||'treble';
+      const lc=_babLegCount(bab);
+      if(bab.result&&bab.result!=='void'){
+        betStats[bt].total++;
+        if(bab.result==='win'){
+          betStats[bt].win++;
+          totalPL+=bab.pl||0;
+        } else if(bab.result==='loss'){
+          totalPL-=parseFloat(bab.stake)||2.50;
+        }
       }
-      bab.legs.forEach(leg=>{
-        if(leg.marketType&&leg.result){
-          if(!marketStats[leg.marketType])marketStats[leg.marketType]={wins:0,total:0};
+      // Only count legs within the active betType range
+      bab.legs.slice(0,lc).forEach(leg=>{
+        if(leg.marketType&&leg.result&&leg.result!=='void'){
+          if(!marketStats[leg.marketType])marketStats[leg.marketType]={wins:0,total:0,byFormat:{single:0,double:0,treble:0}};
           marketStats[leg.marketType].total++;
+          marketStats[leg.marketType].byFormat[bt]=(marketStats[leg.marketType].byFormat[bt]||0)+1;
           if(leg.result==='win'||leg.result==='super_sub')marketStats[leg.marketType].wins++;
         }
       });
     });
   });
+
+  const totalBets=betStats.single.total+betStats.double.total+betStats.treble.total;
+  const totalWins=betStats.single.win+betStats.double.win+betStats.treble.win;
+
   const plEl=document.getElementById('sess-pl');
   const wrEl=document.getElementById('sess-wr');
   const cntEl=document.getElementById('sess-count');
   const babsEl=document.getElementById('sess-babs');
+
   if(plEl){plEl.textContent=(totalPL>=0?'+':'')+'£'+Math.abs(totalPL).toFixed(2);plEl.style.color=totalPL>=0?'var(--green)':'var(--red)';}
-  if(wrEl){wrEl.textContent=totalBabs?`${Math.round(winBabs/totalBabs*100)}%`:'—';}
+  if(wrEl)wrEl.textContent=totalBets?`${Math.round(totalWins/totalBets*100)}%`:'—';
   if(cntEl)cntEl.textContent=`${sessionLog.length} sessions`;
-  if(babsEl)babsEl.textContent=`${totalBabs} BABs tracked`;
-  // Market breakdown
-  const mbEl=document.getElementById('sess-market-breakdown');
-  if(mbEl&&Object.keys(marketStats).length){
-    const sorted=Object.entries(marketStats).sort((a,b)=>(b[1].wins/b[1].total)-(a[1].wins/a[1].total));
-    mbEl.innerHTML=sorted.map(([type,stats])=>{
-      const wr=Math.round(stats.wins/stats.total*100);
-      const barW=wr;
+  if(babsEl){
+    const parts=[];
+    if(betStats.single.total)parts.push(`${betStats.single.total} single${betStats.single.total>1?'s':''}`);
+    if(betStats.double.total)parts.push(`${betStats.double.total} double${betStats.double.total>1?'s':''}`);
+    if(betStats.treble.total)parts.push(`${betStats.treble.total} treble${betStats.treble.total>1?'s':''}`);
+    babsEl.textContent=parts.length?parts.join(' · '):'0 bets tracked';
+  }
+
+  // Per-format win rate strip under the headline
+  const fmtEl=document.getElementById('sess-format-wr');
+  if(fmtEl){
+    const rows=['single','double','treble'].filter(f=>betStats[f].total>0).map(f=>{
+      const wr=Math.round(betStats[f].win/betStats[f].total*100);
       const col=wr>=60?'var(--green)':wr>=40?'var(--gold)':'var(--red)';
-      return `<div style="margin-bottom:6px">
-        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
-          <span style="color:var(--text)">${type}</span>
-          <span style="color:${col};font-weight:700">${wr}% (${stats.wins}/${stats.total})</span>
-        </div>
-        <div style="height:4px;background:var(--border);border-radius:2px"><div style="height:100%;width:${barW}%;background:${col};border-radius:2px"></div></div>
-      </div>`;
-    }).join('');
+      return `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s2);border:1px solid var(--border)">${f[0].toUpperCase()+f.slice(1)}: <b style="color:${col}">${wr}%</b> (${betStats[f].win}/${betStats[f].total})</span>`;
+    });
+    fmtEl.innerHTML=rows.length?rows.join(''):'';
+    fmtEl.style.display=rows.length?'flex':'none';
+  }
+
+  // Market breakdown — only over active legs
+  const mbEl=document.getElementById('sess-market-breakdown');
+  if(mbEl){
+    if(!Object.keys(marketStats).length){
+      mbEl.innerHTML=`<div style="font-size:11px;color:var(--dim)">Log sessions with leg results to see market breakdown</div>`;
+    } else {
+      const sorted=Object.entries(marketStats).sort((a,b)=>(b[1].wins/b[1].total)-(a[1].wins/a[1].total));
+      mbEl.innerHTML=sorted.map(([type,stats])=>{
+        const wr=Math.round(stats.wins/stats.total*100);
+        const col=wr>=60?'var(--green)':wr>=40?'var(--gold)':'var(--red)';
+        return `<div style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+            <span style="color:var(--text)">${type}</span>
+            <span style="color:${col};font-weight:700">${wr}% (${stats.wins}/${stats.total})</span>
+          </div>
+          <div style="height:4px;background:var(--border);border-radius:2px"><div style="height:100%;width:${wr}%;background:${col};border-radius:2px"></div></div>
+        </div>`;
+      }).join('');
+    }
   }
 }
 
@@ -3509,13 +4300,13 @@ function renderSwappedLeg(legDiv,leg,babIdx,legIdx,isDifferentType,originalType)
 }
 
 // ─── v20: INLINE EV GATE ─────────────────────────────────
-function checkInlineEV(input,combinedProb,evId,babType){
+function checkInlineEV(input,combinedProb,evId,babType,gateOdds){
   const odds=parseFloat(input.value);
   const el=document.getElementById(evId);
   if(!el)return;
   if(!odds||odds<1.01){el.textContent='Enter odds →';el.style.background='var(--s2)';el.style.color='var(--dim)';return;}
   const ev=(combinedProb*odds)-1;
-  const minOdds=babType==='long'?6.0:3.0;
+  const minOdds=gateOdds||(babType==='long'?6.0:3.0);
   const oddsOk=odds>=minOdds;
   const evOk=ev>0;
   if(evOk&&oddsOk){
@@ -3770,7 +4561,7 @@ document.addEventListener('DOMContentLoaded', async function(){
         document.getElementById('fixSection').style.display='block';
         populateUpcoming();
         renderFixtures('All');
-        const done=fixtures.filter(f=>f.fixture.status?.short==='FT').length;
+        const done=fixtures.filter(f=>['FT','AET','PEN'].includes(f.fixture.status?.short)).length;
         setStatus('fixStatus','ok',`✅ Auto-restored ${fixtures.length} fixtures (${done} completed) — tap Load to refresh`);
       }
     }catch(e){}
