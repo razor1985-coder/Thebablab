@@ -2348,12 +2348,8 @@ function generateBABs(teams,fix){
 }
 
 function getContextMultiplier(){
-  // Read active context flags and return combined multiplier
-  let mult=1.0;
-  document.querySelectorAll('.ctx-flag.active').forEach(el=>{
-    mult*=parseFloat(el.dataset.mult)||1.0;
-  });
-  return mult;
+  // Delegate to keyed-state version — DOM query counted every flag twice (two elements per flag)
+  return getCtxMult();
 }
 
 function getActiveContextFlags(){
@@ -3019,7 +3015,7 @@ function renderBabCardsHTML(babs,fix,refData,ref){
       const playerNameGuess=(leg.player||leg.market.split(' ').slice(0,2).join(' '));
       const lineupBadge=lineupStatusBadge(playerNameGuess);
       const notInXI=lineupConfirmed.length&&lineupBadge.includes('NOT IN XI');
-      html+=`<div class="bab-leg" id="leg_${babIdx}_${legIdx}" style="${notInXI?'opacity:0.4;background:rgba(239,68,68,0.08);border-radius:4px;padding:4px;':''}">
+      html+=`<div class="bab-leg" id="leg_${babIdx}_${legIdx}" data-legtype="${leg.type}" style="${notInXI?'opacity:0.4;background:rgba(239,68,68,0.08);border-radius:4px;padding:4px;':''}">
         <div style="flex:1;min-width:0">
           <div class="leg-market">${leg.market}${lineupBadge}</div>
           <div class="leg-player">${leg.notes}</div>
@@ -3054,8 +3050,8 @@ function renderBabCardsHTML(babs,fix,refData,ref){
       html+=`<div style="background:#0a0a14;border:1px solid #1a1a2a;border-radius:6px;padding:8px;margin:8px 0">
         <div style="font-size:10px;color:var(--gold);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">⚡ EV Gate — Enter Sky Bet Combined Odds (min ${gateOdds}x)</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="number" step="0.01" min="1.01" placeholder="e.g. ${gateOdds}" style="width:100px;font-size:13px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-weight:700" oninput="checkInlineEV(this,${combinedProb.toFixed(4)},'${evId}','${babType}',${gateOdds})">
-          <div style="font-size:11px;color:var(--dim)">Hit prob: <b style="color:var(--mid)">${(combinedProb*100).toFixed(1)}%</b> · Min EV: <b style="color:var(--gold)">${minOdds}x</b></div>
+          <input type="number" step="0.01" min="1.01" placeholder="e.g. ${gateOdds}" id="evinput_${babIdx}" style="width:100px;font-size:13px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-weight:700" oninput="checkInlineEV(this,${combinedProb.toFixed(4)},'${evId}','${babType}',${gateOdds})">
+          <div id="evprob_${babIdx}" style="font-size:11px;color:var(--dim)">Hit prob: <b style="color:var(--mid)">${(combinedProb*100).toFixed(1)}%</b> · Min EV: <b style="color:var(--gold)">${minOdds}x</b></div>
           <div id="${evId}" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--s2);color:var(--dim)">Enter odds →</div>
         </div>
       </div>`;
@@ -4303,6 +4299,7 @@ function swapLeg(babIdx,legIdx,legType,currentPlayer){
     best.type!==legType,  // flag if different market type
     legType               // original market type for context
   );
+  refreshEVGate(babIdx);
 }
 
 function resetSwapSlot(babIdx,legIdx,legType,player){
@@ -4343,6 +4340,33 @@ function renderSwappedLeg(legDiv,leg,babIdx,legIdx,isDifferentType,originalType)
       <button onclick="swapLeg(${babIdx},${legIdx},'${leg.type}','${playerName}')" style="font-size:10px;padding:3px 8px;background:#2a1200;color:#ff9900;border:1px solid #5a3000;border-radius:5px;cursor:pointer;white-space:nowrap;width:100%;margin-top:2px">🔄 Swap</button>
     </div>`;
   legDiv.style.cssText=notInXI?'opacity:0.4;background:rgba(239,68,68,0.08);border-radius:4px;padding:4px;':'';
+  legDiv.dataset.legtype=leg.type;
+}
+
+function refreshEVGate(babIdx){
+  const legsContainer=document.getElementById(`bablegs_${babIdx}`);
+  if(!legsContainer)return;
+  const legs=[...legsContainer.querySelectorAll('.bab-leg')];
+  if(!legs.length)return;
+  const baseProbs={shots_created:0.40,tackles:0.43,fouled:0.55,sot:0.52,foul_involvement:0.50,foul:0.65,shots:0.48,card:0.16,assists:0.35,goals:0.30,foul_involvement_h1:0.55,sot_h1:0.45};
+  const combinedProb=legs.reduce((acc,el)=>acc*(baseProbs[el.dataset.legtype]||0.45),1);
+  const minOdds=(1/combinedProb).toFixed(2);
+  const probEl=document.getElementById(`evprob_${babIdx}`);
+  if(probEl)probEl.innerHTML=`Hit prob: <b style="color:var(--mid)">${(combinedProb*100).toFixed(1)}%</b> · Min EV: <b style="color:var(--gold)">${minOdds}x</b>`;
+  const input=document.getElementById(`evinput_${babIdx}`);
+  if(!input)return;
+  // Preserve gateOdds baked into original oninput rather than guessing from babType
+  const existingHandler=input.getAttribute('oninput')||'';
+  const gateMatch=existingHandler.match(/,(\d+(?:\.\d+)?)\)$/);
+  const babTypeMatch=existingHandler.match(/'(best|long)'/);
+  const gateOdds=gateMatch?parseFloat(gateMatch[1]):3.0;
+  const babType=babTypeMatch?babTypeMatch[1]:'best';
+  const evResultEl=input.parentElement?input.parentElement.querySelector('[id^="ev_"]'):null;
+  const evId=evResultEl?evResultEl.id:'';
+  input.setAttribute('oninput',`checkInlineEV(this,${combinedProb.toFixed(4)},'${evId}','${babType}',${gateOdds})`);
+  if(evId&&input.value&&parseFloat(input.value)>=1.01){
+    checkInlineEV(input,combinedProb,evId,babType,gateOdds);
+  }
 }
 
 // ─── v20: INLINE EV GATE ─────────────────────────────────
