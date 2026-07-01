@@ -2080,6 +2080,7 @@ function generateDebrief(teams,fix){
   const topSOT=all.filter(p=>p.s.shots?.on>=2).sort((a,b)=>(b.s.shots.on||0)-(a.s.shots.on||0));
   const topFouled=all.filter(p=>p.s.fouls?.drawn>=3).sort((a,b)=>(b.s.fouls.drawn||0)-(a.s.fouls.drawn||0));
   const topTackles=all.filter(p=>p.s.tackles?.total>=3).sort((a,b)=>(b.s.tackles.total||0)-(a.s.tackles.total||0));
+  const topShotsCreated=all.filter(p=>(p.s.passes?.key||0)>=2).sort((a,b)=>(b.s.passes?.key||0)-(a.s.passes?.key||0));
   const newAssets=all.filter(p=>!lookupAsset(p.player.name)&&((p.s.fouls?.committed>=3)||(p.s.shots?.on>=2&&p.s.fouls?.committed>=2)));
 
   let debriefText=`📊 BABLab Match Debrief — ${fix.teams.home.name} ${fix.goals.home}-${fix.goals.away} ${fix.teams.away.name}\n\n`;
@@ -2139,6 +2140,17 @@ function generateDebrief(teams,fix){
     html+=`</div>`;debriefText+='\n';
   }
 
+  if(topShotsCreated.length){
+    html+=`<div class="debrief-section"><h4>🎯 Shots Created Leaders (x2.25 — top hierarchy)</h4>`;
+    debriefText+=`SHOTS CREATED LEADERS:\n`;
+    topShotsCreated.forEach(p=>{
+      const asset=lookupAsset(p.player.name);
+      html+=`<div class="debrief-item"><b>${p.player.name}</b> (${p.teamName}) — ${p.s.passes?.key} key passes${asset?' ✅ known asset':''}</div>`;
+      debriefText+=`• ${p.player.name} (${p.teamName}): ${p.s.passes?.key} key passes\n`;
+    });
+    html+=`</div>`;debriefText+='\n';
+  }
+
   if(newAssets.length){
     html+=`<div class="debrief-section"><h4>🆕 Potential New Assets</h4>`;
     debriefText+=`NEW ASSETS TO WATCH:\n`;
@@ -2156,7 +2168,7 @@ function generateDebrief(teams,fix){
     team.players.forEach(p => {
       const s = p.statistics[0];
       if(!s?.games?.minutes) return;
-      fullStatTable += `${p.player.name} (${s.games.position||'?'} ${s.games.minutes}') — fouls:${s.fouls?.committed||0} fouled:${s.fouls?.drawn||0} sot:${s.shots?.on||0} shots:${s.shots?.total||0} tackles:${s.tackles?.total||0} yc:${s.cards?.yellow||0} rc:${s.cards?.red||0} goals:${s.goals?.total||0} rating:${s.games?.rating||'-'}\n`;
+      fullStatTable += `${p.player.name} (${s.games.position||'?'} ${s.games.minutes}') — fc:${s.fouls?.committed||0} fd:${s.fouls?.drawn||0} sot:${s.shots?.on||0} shots:${s.shots?.total||0} kp:${s.passes?.key||0} tackles:${s.tackles?.total||0} yc:${s.cards?.yellow||0} rc:${s.cards?.red||0} goals:${s.goals?.total||0} rating:${s.games?.rating||'-'}\n`;
     });
   });
   debriefText += fullStatTable;
@@ -2500,7 +2512,7 @@ function buildTwoBABs(candidates,fix,refData){
     if(bestUsed.has(c.player)&&longLegs.length<legCount-1){
       longLegs.push({...c,market:upgradeThreshold(c),notes:c.notes+' (upgraded threshold)'});
       longUsed.add(c.player);
-    } else if(!longUsed.has(c.player)){
+    } else if(!longUsed.has(c.player)&&!bestUsed.has(c.player)){
       longLegs.push(c);
       longUsed.add(c.player);
     }
@@ -2515,13 +2527,15 @@ function buildTwoBABs(candidates,fix,refData){
       }
     }
     if(longLegs.length<3){
-      const fallback=longPool.find(c=>c.type!=='card'&&!longUsed.has(c.player));
+      const fallback=longPool.find(c=>c.type!=='card'&&!longUsed.has(c.player)&&!bestUsed.has(c.player))
+        ||longPool.find(c=>c.type!=='card'&&!longUsed.has(c.player));
       if(fallback&&longLegs.length<3)longLegs.push(fallback);
     }
   } else {
     // Double: fill 2nd longshot slot with next-best if needed
     if(longLegs.length<2){
-      const fallback=longPool.find(c=>c.type!=='card'&&!longUsed.has(c.player));
+      const fallback=longPool.find(c=>c.type!=='card'&&!longUsed.has(c.player)&&!bestUsed.has(c.player))
+        ||longPool.find(c=>c.type!=='card'&&!longUsed.has(c.player));
       if(fallback)longLegs.push(fallback);
     }
   }
