@@ -1908,6 +1908,13 @@ function getGroup(f){
   return m?`Group ${m[1]}`:r.includes('Round of')||r.includes('Quarter')||r.includes('Semi')||r.includes('Final')?'Knockouts':'Other';
 }
 
+// A non-terminal fixture is "likely stale" if its kickoff was > 3h ago.
+// Matches routinely finish within 2h (90+extra+breaks); 3h is a safe buffer for AET.
+function isLikelyStale(f){
+  if(['FT','AET','PEN'].includes(f.fixture.status.short))return false;
+  return (Date.now()-new Date(f.fixture.date).getTime())>3*60*60*1000;
+}
+
 function renderFixtures(group){
   activeGroup=group;
   const groups=['All',...new Set(fixtures.map(getGroup))].filter(g=>g!=='Other');
@@ -1916,26 +1923,88 @@ function renderFixtures(group){
   const sorted=[...filtered].sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date));
   document.getElementById('fixList').innerHTML=sorted.map(f=>{
     const ft=['FT','AET','PEN'].includes(f.fixture.status.short);
+    const stale=!ft&&isLikelyStale(f);
     const date=new Date(f.fixture.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     const time=new Date(f.fixture.date).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const done=playerDB[`fix_${f.fixture.id}`];
-    return `<div class="fix-card ${ft?'':'upcoming'}" onclick="${ft?`pullStats(${f.fixture.id})`:''}">
+    const clickHandler=ft?`pullStats(${f.fixture.id})`:stale?`handleStaleFix(${f.fixture.id})`:'';
+    const staleBadge=stale?`<span style="font-size:9px;font-weight:700;color:#ff9900;background:#1a1000;border:1px solid #5a3000;border-radius:3px;padding:1px 5px;margin-left:4px">⚠️ STALE?</span>`:'';
+    return `<div class="fix-card ${ft?'':stale?'upcoming stale-fix':'upcoming'}" id="fixcard_${f.fixture.id}" onclick="${clickHandler}" style="${stale?'cursor:pointer;':''}">
       <div class="fix-date">${date}<br><span style="color:var(--dim)">${time}</span></div>
       <div class="fix-teams">
-        <div class="fix-match">${done?'<span class="dot-done"></span>':''}${f.teams.home.name} vs ${f.teams.away.name}</div>
+        <div class="fix-match">${done?'<span class="dot-done"></span>':''}${f.teams.home.name} vs ${f.teams.away.name}${staleBadge}</div>
         <div class="fix-round">${getGroup(f)}</div>
       </div>
-      <div class="fix-score ${ft?'':'ns'}">${ft?f.goals.home+'-'+f.goals.away:time}</div>
+      <div class="fix-score ${ft?'':'ns'}">${ft?f.goals.home+'-'+f.goals.away:stale?'⚠️':time}</div>
     </div>`;
   }).join('');
 }
 
+function handleStaleFix(fixtureId){
+  const card=document.getElementById(`fixcard_${fixtureId}`);
+  if(!card)return;
+  const fix=fixtures.find(f=>f.fixture.id===fixtureId);
+  const label=fix?`${fix.teams.home.name} vs ${fix.teams.away.name}`:'this fixture';
+  card.innerHTML=`
+    <div style="width:100%;padding:4px 0">
+      <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:6px">⚠️ Cached status may be outdated</div>
+      <div style="font-size:11px;color:var(--dim);margin-bottom:8px">${label} — cached as not started but kickoff was 3h+ ago. Status may now be FT. Refresh to unlock the debrief.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="event.stopPropagation();refreshSingleFixture(${fixtureId})" style="font-size:11px;padding:5px 12px;background:#0a2000;color:var(--green);border:1px solid #1a5000;border-radius:6px;cursor:pointer;font-weight:700">🔄 Refresh this fixture</button>
+        <button onclick="event.stopPropagation();loadFixtures()" style="font-size:11px;padding:5px 12px;background:var(--s2);color:var(--dim);border:1px solid var(--border);border-radius:6px;cursor:pointer">Refresh all fixtures</button>
+      </div>
+    </div>`;
+  card.style.cssText='border-color:var(--orange);cursor:default;background:#0d0a00';
+}
+
+async function refreshSingleFixture(fixtureId){
+  const key=getKey();
+  if(!key){alert('Enter API key first');return}
+  const card=document.getElementById(`fixcard_${fixtureId}`);
+  if(card)card.innerHTML=`<div style="font-size:11px;color:var(--dim);padding:8px">Checking fixture status...</div>`;
+  try{
+    const res=await fetch(`https://v3.football.api-sports.io/fixtures?id=${fixtureId}`,{headers:{'x-apisports-key':key}});
+    const data=await res.json();incCalls();
+    if(!data.response||!data.response.length)throw new Error('No data returned');
+    const updated=data.response[0];
+    // Patch the local fixtures array in-place
+    const idx=fixtures.findIndex(f=>f.fixture.id===fixtureId);
+    if(idx>=0)fixtures[idx]=updated;
+    // Update localStorage cache
+    try{localStorage.setItem('blab-fixtures',JSON.stringify(fixtures))}catch(e){}
+    const nowFt=['FT','AET','PEN'].includes(updated.fixture.status.short);
+    renderFixtures(activeGroup);
+    populateUpcoming();
+    if(nowFt){
+      // Status confirmed terminal — pull debrief automatically
+      pullStats(fixtureId);
+    } else {
+      // Still not finished — update card to reflect actual current status
+      const c=document.getElementById(`fixcard_${fixtureId}`);
+      if(c){
+        const statusLabel=updated.fixture.status.long||updated.fixture.status.short;
+        c.insertAdjacentHTML('afterbegin',`<div style="font-size:10px;color:var(--orange);padding:4px 8px;border-bottom:1px solid var(--border)">Status confirmed: ${statusLabel} — not yet finished</div>`);
+      }
+    }
+  }catch(e){
+    const c=document.getElementById(`fixcard_${fixtureId}`);
+    if(c)c.innerHTML=`<div style="font-size:11px;color:var(--red);padding:8px">Refresh failed: ${e.message} — try "Load Fixtures" instead</div>`;
+  }
+}
+
 function populateUpcoming(){
-  const upcoming=fixtures.filter(f=>!['FT','AET','PEN'].includes(f.fixture.status.short)).sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date));
-  document.getElementById('upcomingSelect').innerHTML='<option value="">— Select fixture —</option>'+upcoming.map(f=>{
-    const date=new Date(f.fixture.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-    return `<option value="${f.fixture.id}">${f.teams.home.name} vs ${f.teams.away.name} (${date})</option>`;
-  }).join('');
+  const TERMINAL=['FT','AET','PEN'];
+  const allNonTerminal=fixtures.filter(f=>!TERMINAL.includes(f.fixture.status.short)).sort((a,b)=>new Date(a.fixture.date)-new Date(b.fixture.date));
+  // Exclude likely-stale fixtures from the pre-match dropdown — a finished match
+  // showing as "upcoming" is a silent data-integrity risk (R-WC stale cache issue).
+  const trueUpcoming=allNonTerminal.filter(f=>!isLikelyStale(f));
+  const staleCount=allNonTerminal.length-trueUpcoming.length;
+  const staleNote=staleCount>0?`<option value="" disabled style="color:#ff9900">⚠️ ${staleCount} fixture(s) hidden — status may be stale (refresh fixtures)</option>`:'';
+  const date=f=>new Date(f.fixture.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  document.getElementById('upcomingSelect').innerHTML=
+    '<option value="">— Select fixture —</option>'+
+    trueUpcoming.map(f=>`<option value="${f.fixture.id}">${f.teams.home.name} vs ${f.teams.away.name} (${date(f)})</option>`).join('')+
+    staleNote;
 }
 
 // ─── PULL PLAYER STATS ───────────────────────────────────
