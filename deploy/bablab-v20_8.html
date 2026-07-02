@@ -625,7 +625,7 @@ background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:3
 
   <!-- New Rules Summary -->
   <div class="ctx-panel" style="margin-bottom:80px">
-    <div class="ctx-title">📋 Rules — v20.8 (R-WC74 to R-WC125 + Knockout Learning Rules)</div>
+    <div class="ctx-title">📋 Rules — v20.8 (R-WC74 to R-WC127 + Knockout Learning Rules)</div>
     <div style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--mid);line-height:1.6">
       <div style="padding:6px 8px;background:#0a1a10;border:1px solid #1a3f20;border-radius:6px;margin-bottom:4px">
         <b style="color:var(--green)">v15 GATE RULES:</b><br>
@@ -687,6 +687,8 @@ background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:3
       <div><b style="color:#f90">R-WC123 — POSSESSION-DOMINANT OPPONENT SUPPRESSES fd</b> When the opposition dominates possession patiently (62%+ avg), the defensive team's DMs are bypassed via passing not dribbling — their fouls-won rate drops sharply. Mokoena 0fd vs Canada (62% possession) confirmed. Only back DM fd legs when the opponent is expected to press high, play direct, or attack at pace — not when they are a patient possession team.</div>
       <div><b style="color:#f90">R-WC124 — WC PERFORMANCE OVERRIDES CAREER AVG (REFS)</b> Referee career averages do not reliably predict WC knockout performance. Pinheiro career HIGH (4.8 YC/game) but produced only 3YC+1RC vs SUI/BIH and 2YC vs RSA/CAN in WC context. Always weight confirmed WC match data above career stats. Maintain WC-specific YC tracking for all refs who appear in multiple knockout games.</div>
       <div><b style="color:#f90">R-WC125 — STRIKER SOT ROLE CHECK (KO)</b> In knockout games where the favourite dominates possession vs a deep block, the primary striker may drop to link play rather than attack the box — suppressing their SOT. Check if team plays two forwards: the second striker (more physical, direct) may generate equal or higher SOT than the name striker. Canada vs RSA: Oluwaseyi 2 SOT, David 1 SOT. Always check both striker profiles before anchoring SOT on name alone.</div>
+      <div><b style="color:var(--green)">R-WC126 — BEST BAB THRESHOLD CEILING (HARD RULE)</b> A leg added to a Best BAB must not use a threshold of 3+ or higher for any counting-stat market (tackles, fouls committed, fouls won, shots created, SOT, shots). Post-match analysis confirmed 3+ thresholds land coinflip-or-worse vs the 2+ win rates these BABs were calibrated on. 3+ thresholds are Longshot-only. The BAB builder enforces this automatically — 3+ legs are stripped from the Best BAB pool at generation and Swap time.</div>
+      <div><b style="color:#a78bfa">R-WC127 — EXTRA TIME STAT INFLATION FLAG (VISIBLE WARNING)</b> When a fixture went to AET (120 mins + possible pens), counting stats — tackles, fouls committed, fouls won, key passes — run higher than the 90-min baseline all thresholds and averages were calibrated against. The debrief panel surfaces an ⏱️ ET warning when pulling stats for an AET game. Player Form averages flag ⏱️ inc. ET when any logged match for that player included extra time. Do NOT auto-adjust thresholds — weight data manually. Belgium 3-2 Senegal AET confirmed: all tackle/foul leaders were inflated by ~30% vs expected 90-min output.</div>
     </div>
   </div>
 </div>
@@ -1927,12 +1929,15 @@ function renderFixtures(group){
     const date=new Date(f.fixture.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     const time=new Date(f.fixture.date).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const done=playerDB[`fix_${f.fixture.id}`];
+    const wentET=['AET','PEN'].includes(f.fixture.status.short);
+    const liveET=f.fixture.status.short==='ET';
     const clickHandler=ft?`pullStats(${f.fixture.id})`:stale?`handleStaleFix(${f.fixture.id})`:'';
     const staleBadge=stale?`<span style="font-size:9px;font-weight:700;color:#ff9900;background:#1a1000;border:1px solid #5a3000;border-radius:3px;padding:1px 5px;margin-left:4px">⚠️ STALE?</span>`:'';
+    const etBadge=(wentET||liveET)?`<span style="font-size:9px;font-weight:700;color:#a78bfa;background:#0d0a1a;border:1px solid #3d2d6a;border-radius:3px;padding:1px 5px;margin-left:4px">⏱️ ${liveET?'ET LIVE':'AET'}</span>`:'';
     return `<div class="fix-card ${ft?'':stale?'upcoming stale-fix':'upcoming'}" id="fixcard_${f.fixture.id}" onclick="${clickHandler}" style="${stale?'cursor:pointer;':''}">
       <div class="fix-date">${date}<br><span style="color:var(--dim)">${time}</span></div>
       <div class="fix-teams">
-        <div class="fix-match">${done?'<span class="dot-done"></span>':''}${f.teams.home.name} vs ${f.teams.away.name}${staleBadge}</div>
+        <div class="fix-match">${done?'<span class="dot-done"></span>':''}${f.teams.home.name} vs ${f.teams.away.name}${staleBadge}${etBadge}</div>
         <div class="fix-round">${getGroup(f)}</div>
       </div>
       <div class="fix-score ${ft?'':'ns'}">${ft?f.goals.home+'-'+f.goals.away:stale?'⚠️':time}</div>
@@ -2154,7 +2159,13 @@ function generateDebrief(teams,fix){
 
   let debriefText=`📊 BABLab Match Debrief — ${fix.teams.home.name} ${fix.goals.home}-${fix.goals.away} ${fix.teams.away.name}\n\n`;
 
-  let html=`<div class="debrief-card"><div class="debrief-title">📊 Match Debrief</div>`;
+  // R-WC127: ET inflation flag — visible at the top of every AET/PEN debrief
+  const wentET=['AET','PEN'].includes(fix?.fixture?.status?.short);
+  let html=`<div class="debrief-card"><div class="debrief-title">📊 Match Debrief</div>
+  ${wentET?`<div style="background:#0d0a1a;border:1px solid #3d2d6a;border-radius:6px;padding:8px 10px;margin-bottom:10px">
+    <div style="font-size:11px;font-weight:700;color:#a78bfa;margin-bottom:3px">⏱️ R-WC127 — Extra Time (120') — Stat Inflation Warning</div>
+    <div style="font-size:11px;color:var(--dim)">This match went to extra time. Counting stats (tackles, fouls committed, fouls won, key passes) run higher than the 90-min baseline these thresholds were calibrated against. Weight these numbers accordingly before updating KNOWN_ASSETS or setting thresholds from this game.</div>
+  </div>`:''}` ;
 
   if(topFoulers.length){
     html+=`<div class="debrief-section"><h4>🔵 Top Foulers</h4>`;
@@ -2537,7 +2548,8 @@ function buildTwoBABs(candidates,fix,refData){
   }
 
   // R-WC109: Strip cards from Best BAB pool entirely — longshot only
-  const bestPool=filtered.filter(c=>c.type!=='card').sort((a,b)=>scoreCtx(b)-scoreCtx(a));
+  // R-WC126: strip 3+ threshold legs from Best BAB pool — Longshot-only
+  const bestPool=filtered.filter(c=>c.type!=='card'&&!hasHighThreshold(c)).sort((a,b)=>scoreCtx(b)-scoreCtx(a));
   const longPool=filtered.sort((a,b)=>scoreCtx(b)-scoreCtx(a));
 
   const mode=BAB_MODE||'treble';
@@ -2648,6 +2660,13 @@ function upgradeThreshold(c){
   if(c.market.includes('1+ shot on target'))return c.market.replace('1+ shot on target','2+ shots on target');
   if(c.market.includes('2+ shots created'))return c.market.replace('2+ shots created','3+ shots created');
   return c.market;
+}
+
+// R-WC126: 3+ thresholds are Longshot-only. A leg with 3+ (or higher) counting-stat
+// threshold must never anchor a Best BAB — post-match data confirmed 3+ lands coinflip-or-worse.
+function hasHighThreshold(c){
+  // Match "3+" or any higher integer threshold (4+, 5+) in the market string
+  return /\b[3-9]\d*\+/.test(c.market||'');
 }
 
 // ─── PLAYER LIST ─────────────────────────────────────────
@@ -2905,7 +2924,9 @@ function renderPreMatchBABs(fix,lineups,h2h){
       const avgGoals=(p.matches.reduce((a,m)=>a+(m.goals||0),0)/p.matches.length).toFixed(2);
       const avgAssists=(p.matches.reduce((a,m)=>a+(m.assists||0),0)/p.matches.length).toFixed(2);
       const markets=asset?asset.markets:[];
-      html+=`<div class="debrief-item" style="${isSuspended?'opacity:.4':''}">${isSuspended?'🟥 SUSPENDED — ':''}<b>${p.name}</b> (${p.team}) — fc:${p.avgFouls.toFixed(1)} fd:${p.avgFouled.toFixed(1)} sot:${p.avgSOT.toFixed(1)} shots:${avgShots} kp:${avgSC} tack:${avgTackles} g:${avgGoals} a:${avgAssists} yc:${p.totalCards}${asset?' ✅':''} ${markets.length?`[${markets.join(',')}]`:''}</div>`;
+      const hasETMatch=p.matches.some(m=>(m.mins||0)>95);
+      const etNote=hasETMatch?` <span style="font-size:9px;color:#a78bfa;font-weight:700" title="R-WC127: one or more matches in this average went to extra time — counting stats may be inflated">⏱️ inc. ET</span>`:'';
+      html+=`<div class="debrief-item" style="${isSuspended?'opacity:.4':''}">${isSuspended?'🟥 SUSPENDED — ':''}<b>${p.name}</b> (${p.team}) — fc:${p.avgFouls.toFixed(1)} fd:${p.avgFouled.toFixed(1)} sot:${p.avgSOT.toFixed(1)} shots:${avgShots} kp:${avgSC} tack:${avgTackles} g:${avgGoals} a:${avgAssists} yc:${p.totalCards}${asset?' ✅':''} ${markets.length?`[${markets.join(',')}]`:''}${etNote}</div>`;
     });
     html+=`</div>`;
   }
@@ -4353,9 +4374,10 @@ function swapLeg(babIdx,legIdx,legType,currentPlayer){
   }
 
   // Sort all candidates by intelligent score
+  // R-WC126: strip 3+ threshold legs from Best BAB swap pool
   const ranked=candidates
     .map(c=>({...c,_score:candidateScore(c)}))
-    .filter(c=>c._score>0)
+    .filter(c=>c._score>0&&(!isLongshot?!hasHighThreshold(c):true))
     .sort((a,b)=>b._score-a._score);
 
   if(!ranked.length){
